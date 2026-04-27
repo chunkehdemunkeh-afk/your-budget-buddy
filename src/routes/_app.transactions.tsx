@@ -1,11 +1,231 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { useCategories } from "@/hooks/useCategories";
+import { formatMoney, formatShortDate } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Trash2, Search, TrendingUp, TrendingDown, ShoppingCart } from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/transactions")({
   head: () => ({ meta: [{ title: "Activity — Pursely" }] }),
-  component: () => (
-    <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-bold">Activity</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Coming next — full transaction list with filters.</p>
-    </div>
-  ),
+  component: TransactionsPage,
 });
+
+interface Tx {
+  id: string;
+  kind: "income" | "outgoing" | "shopping";
+  amount: number;
+  occurred_on: string;
+  source: string | null;
+  note: string | null;
+  category_id: string | null;
+}
+
+type Filter = "all" | "income" | "outgoing" | "shopping";
+
+function TransactionsPage() {
+  const { user } = useAuth();
+  const { categories } = useCategories();
+  const [txs, setTxs] = useState<Tx[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<Filter>("all");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    async function load() {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("id, kind, amount, occurred_on, source, note, category_id")
+        .order("occurred_on", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (!mounted) return;
+      if (error) {
+        toast.error(error.message);
+      } else {
+        setTxs((data as Tx[]) ?? []);
+      }
+      setLoading(false);
+    }
+    load();
+    const channel = supabase
+      .channel("tx-list")
+      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, () => load())
+      .subscribe();
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return txs.filter((t) => {
+      if (filter !== "all" && t.kind !== filter) return false;
+      if (!q) return true;
+      const cat = t.category_id ? catMap.get(t.category_id) : null;
+      return (
+        (t.source ?? "").toLowerCase().includes(q) ||
+        (t.note ?? "").toLowerCase().includes(q) ||
+        (cat?.name ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [txs, filter, search, catMap]);
+
+  const grouped = useMemo(() => {
+    const groups = new Map<string, Tx[]>();
+    for (const t of filtered) {
+      const arr = groups.get(t.occurred_on) ?? [];
+      arr.push(t);
+      groups.set(t.occurred_on, arr);
+    }
+    return Array.from(groups.entries());
+  }, [filtered]);
+
+  async function handleDelete(id: string) {
+    const prev = txs;
+    setTxs((arr) => arr.filter((t) => t.id !== id));
+    const { error } = await supabase.from("transactions").delete().eq("id", id);
+    if (error) {
+      setTxs(prev);
+      toast.error(error.message);
+    } else {
+      toast.success("Deleted");
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl px-4 pt-6 pb-10 md:px-8 md:pt-10">
+      <header className="mb-5">
+        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Activity</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Every penny in and out, in real time.
+        </p>
+      </header>
+
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search source, note, or category…"
+            className="h-11 rounded-xl pl-9"
+            maxLength={100}
+          />
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto rounded-xl bg-muted p-1">
+          {(["all", "income", "outgoing", "shopping"] as Filter[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-xs font-semibold capitalize transition-colors",
+                filter === f
+                  ? "bg-card text-foreground shadow-[var(--shadow-soft)]"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <p className="py-12 text-center text-sm text-muted-foreground">Loading…</p>
+      ) : grouped.length === 0 ? (
+        <div className="rounded-3xl border border-dashed border-border bg-card/50 py-16 text-center">
+          <p className="text-sm text-muted-foreground">
+            {txs.length === 0
+              ? "No transactions yet — tap + to add your first."
+              : "Nothing matches your filters."}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          {grouped.map(([date, items]) => {
+            const dayTotal = items.reduce(
+              (s, t) => s + (t.kind === "income" ? Number(t.amount) : -Number(t.amount)),
+              0,
+            );
+            return (
+              <section key={date}>
+                <div className="mb-2 flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <span>{formatShortDate(date)}</span>
+                  <span className={dayTotal >= 0 ? "text-success" : "text-destructive"}>
+                    {dayTotal >= 0 ? "+" : "−"}
+                    {formatMoney(Math.abs(dayTotal))}
+                  </span>
+                </div>
+                <ul className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-soft)]">
+                  {items.map((t, idx) => {
+                    const cat = t.category_id ? catMap.get(t.category_id) : null;
+                    const Icon =
+                      t.kind === "income"
+                        ? TrendingUp
+                        : t.kind === "shopping"
+                          ? ShoppingCart
+                          : TrendingDown;
+                    return (
+                      <li
+                        key={t.id}
+                        className={cn(
+                          "group flex items-center gap-3 px-4 py-3",
+                          idx > 0 && "border-t border-border",
+                        )}
+                      >
+                        <span
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                          style={{
+                            background: (cat?.color ?? "#9ca3af") + "22",
+                            color: cat?.color ?? "var(--muted-foreground)",
+                          }}
+                        >
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {t.source ?? cat?.name ?? "Entry"}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {cat?.name ?? "Uncategorised"}
+                            {t.note ? ` · ${t.note}` : ""}
+                          </p>
+                        </div>
+                        <span
+                          className={cn(
+                            "shrink-0 text-sm font-semibold tabular-nums",
+                            t.kind === "income" ? "text-success" : "text-destructive",
+                          )}
+                        >
+                          {t.kind === "income" ? "+" : "−"}
+                          {formatMoney(t.amount)}
+                        </span>
+                        <button
+                          onClick={() => handleDelete(t.id)}
+                          aria-label="Delete"
+                          className="ml-1 rounded-lg p-1.5 text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
