@@ -98,7 +98,7 @@ function DashboardPage() {
           .lte("next_run", in7.toISOString().slice(0, 10))
           .order("next_run", { ascending: true })
           .limit(10),
-        supabase.from("profiles").select("opening_balance").eq("id", user.id).maybeSingle(),
+        supabase.from("profiles").select("opening_balance, opening_balance_date").eq("id", user.id).maybeSingle(),
         supabase.from("transactions").select("kind, amount, occurred_on"),
       ]);
 
@@ -112,13 +112,15 @@ function DashboardPage() {
       });
       setContribTotals(totals);
       setUpcoming((recRes.data as Recurring[]) ?? []);
-      const ob = Number((profileRes.data as { opening_balance: number } | null)?.opening_balance ?? 0);
+      const profileData = profileRes.data as { opening_balance: number; opening_balance_date: string | null } | null;
+      const ob = Number(profileData?.opening_balance ?? 0);
+      const obDate = profileData?.opening_balance_date ?? null;
       setOpeningBalance(ob);
       
       const allTx = (allTxRes.data as BalanceTransaction[]) ?? [];
       setCurrentBalance(calculateCurrentBalance({
         openingBalance: ob,
-        openingBalanceDate: null, // Ready for when the user adds it to the schema
+        openingBalanceDate: obDate,
         transactions: allTx,
       }));
       setLoading(false);
