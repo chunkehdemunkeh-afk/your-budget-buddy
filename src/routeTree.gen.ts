@@ -20,6 +20,7 @@ import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppRecurringRouteImport } from './routes/_app.recurring'
 import { Route as AppGoalsRouteImport } from './routes/_app.goals'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as ApiPublicHooksRunRecurringRouteImport } from './routes/api/public/hooks/run-recurring'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -75,6 +76,12 @@ const AppDashboardRoute = AppDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AppRoute,
 } as any)
+const ApiPublicHooksRunRecurringRoute =
+  ApiPublicHooksRunRecurringRouteImport.update({
+    id: '/api/public/hooks/run-recurring',
+    path: '/api/public/hooks/run-recurring',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -87,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/add/income': typeof AddIncomeRoute
   '/add/outgoing': typeof AddOutgoingRoute
   '/add/shopping': typeof AddShoppingRoute
+  '/api/public/hooks/run-recurring': typeof ApiPublicHooksRunRecurringRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -99,6 +107,7 @@ export interface FileRoutesByTo {
   '/add/income': typeof AddIncomeRoute
   '/add/outgoing': typeof AddOutgoingRoute
   '/add/shopping': typeof AddShoppingRoute
+  '/api/public/hooks/run-recurring': typeof ApiPublicHooksRunRecurringRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -113,6 +122,7 @@ export interface FileRoutesById {
   '/add/income': typeof AddIncomeRoute
   '/add/outgoing': typeof AddOutgoingRoute
   '/add/shopping': typeof AddShoppingRoute
+  '/api/public/hooks/run-recurring': typeof ApiPublicHooksRunRecurringRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -127,6 +137,7 @@ export interface FileRouteTypes {
     | '/add/income'
     | '/add/outgoing'
     | '/add/shopping'
+    | '/api/public/hooks/run-recurring'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -139,6 +150,7 @@ export interface FileRouteTypes {
     | '/add/income'
     | '/add/outgoing'
     | '/add/shopping'
+    | '/api/public/hooks/run-recurring'
   id:
     | '__root__'
     | '/'
@@ -152,6 +164,7 @@ export interface FileRouteTypes {
     | '/add/income'
     | '/add/outgoing'
     | '/add/shopping'
+    | '/api/public/hooks/run-recurring'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -161,6 +174,7 @@ export interface RootRouteChildren {
   AddIncomeRoute: typeof AddIncomeRoute
   AddOutgoingRoute: typeof AddOutgoingRoute
   AddShoppingRoute: typeof AddShoppingRoute
+  ApiPublicHooksRunRecurringRoute: typeof ApiPublicHooksRunRecurringRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -242,6 +256,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDashboardRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/public/hooks/run-recurring': {
+      id: '/api/public/hooks/run-recurring'
+      path: '/api/public/hooks/run-recurring'
+      fullPath: '/api/public/hooks/run-recurring'
+      preLoaderRoute: typeof ApiPublicHooksRunRecurringRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -270,6 +291,7 @@ const rootRouteChildren: RootRouteChildren = {
   AddIncomeRoute: AddIncomeRoute,
   AddOutgoingRoute: AddOutgoingRoute,
   AddShoppingRoute: AddShoppingRoute,
+  ApiPublicHooksRunRecurringRoute: ApiPublicHooksRunRecurringRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
