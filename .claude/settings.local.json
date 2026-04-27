@@ -8,7 +8,12 @@
       "Bash(git pull *)",
       "Bash(bun build *)",
       "PowerShell(bun build *)",
-      "Bash(~/.bun/bin/bun build *)"
+      "Bash(~/.bun/bin/bun build *)",
+      "PowerShell(cd \"C:\\\\Users\\\\chunk\\\\Documents\\\\GitHub\\\\your-budget-buddy\"; & \"$env:APPDATA\\\\npm\\\\bunx.cmd\" eslint src/routes/_app.insights.tsx --max-warnings 0 2>&1 | Select-Object -First 80)",
+      "PowerShell($env:PATH -split \";\" | Where-Object { $_ -match \"bun\" })",
+      "PowerShell(Test-Path *)",
+      "Bash(export PATH=\"$HOME/.bun/bin:$PATH\")",
+      "PowerShell(Get-ChildItem *)"
     ]
   }
 }

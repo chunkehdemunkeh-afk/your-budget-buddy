@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { LayoutDashboard, ListPlus, Target, Settings, Repeat } from "lucide-react";
+import { LayoutDashboard, ListPlus, Target, Settings, Repeat, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const tabs = [
@@ -7,6 +7,7 @@ const tabs = [
   { to: "/transactions", label: "Activity", icon: ListPlus },
   { to: "/recurring", label: "Recurring", icon: Repeat },
   { to: "/goals", label: "Goals", icon: Target },
+  { to: "/insights", label: "Insights", icon: TrendingUp },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 
@@ -14,7 +15,7 @@ export function MobileTabBar() {
   const location = useLocation();
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-card/95 backdrop-blur-lg pb-[env(safe-area-inset-bottom)] md:hidden">
-      <ul className="grid grid-cols-5">
+      <ul className="grid grid-cols-6">
         {tabs.map((t) => {
           const active = location.pathname.startsWith(t.to);
           const Icon = t.icon;

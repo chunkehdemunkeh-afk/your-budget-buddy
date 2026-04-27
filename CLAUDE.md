@@ -33,7 +33,7 @@ Routes live in `src/routes/` and are file-based (TanStack Router). The `routeTre
 - `/` → `index.tsx` — landing/redirect
 - `/auth` → email/password + Google OAuth sign-in
 - `/_app` layout (`_app.tsx`) — auth-gated; wraps all app pages with `AuthProvider`, sidebar, mobile tab bar, and FAB
-  - `/_app/dashboard` — monthly summary, charts, goals preview, upcoming recurring
+  - `/_app/dashboard` — monthly summary, charts, Week Ahead (navigable weekly view with opening/closing balances), goals preview, upcoming recurring
   - `/_app/transactions` — full transaction list
   - `/_app/goals` — savings goals + contributions
   - `/_app/recurring` — recurring rules management
@@ -61,10 +61,16 @@ Never import `client.server` in client-facing components.
 ## Database schema (key tables)
 
 - `transactions` — `kind: "income" | "outgoing" | "shopping"`, linked to `categories` and optionally `recurring_rules`
-- `recurring_rules` — `frequency: "weekly" | "fortnightly" | "monthly" | "yearly"`, `next_run: date`, `paused: boolean`. The cron endpoint inserts a transaction and advances `next_run` each cycle.
+- `recurring_rules` — `frequency: "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly"`, `next_run: date`, `paused: boolean`. The cron endpoint inserts a transaction and advances `next_run` each cycle.
 - `goals` + `goal_contributions` — savings goals with individual deposits
 - `categories` — user-owned, typed `"income" | "outgoing"`, carry a hex `color`
-- `profiles` — per-user `currency`, `display_name`, `opening_balance` (numeric, default 0)
+- `profiles` — per-user `currency`, `display_name`, `opening_balance` (numeric, default 0), `opening_balance_date` (date, nullable — transactions before this date are excluded from balance calculations)
+
+## Key lib utilities
+
+- `src/lib/balance.ts` — `calculateCurrentBalance({ openingBalance, openingBalanceDate, transactions })` computes the true running balance, filtering out transactions before `openingBalanceDate`. Used on the dashboard.
+- `src/lib/recurring.ts` — frequency helpers. **Always use `displayNextRun(rule.next_run, rule.frequency)` for display** — the raw `next_run` in the DB can be stale if the cron hasn't fired. `toDateOnly(date)` converts a `Date` to a local `YYYY-MM-DD` string safely (avoids BST/UTC midnight issues).
+- `src/lib/format.ts` — `formatMoney()`, `formatShortDate()`
 
 ## Data fetching pattern
 
@@ -76,6 +82,8 @@ Pages fetch directly from Supabase inside `useEffect` (no React Query). Most pag
 - Custom design tokens: `--gradient-primary`, `--gradient-card`, `--shadow-glow`, `--shadow-soft`, `--color-success`, `--color-warning`
 - Currency display uses `formatMoney()` from `src/lib/format.ts` — hardcoded GBP (£) symbol for now; the `profiles.currency` field exists but is not yet wired to formatting
 - Amounts are stored as numbers in Postgres; always cast with `Number(t.amount)` after reading from Supabase
+- Date strings: use `toDateOnly(new Date())` (from `src/lib/recurring.ts`) rather than `new Date().toISOString().slice(0, 10)` — the ISO version gives yesterday's date for UK users in BST
+- When passing a `Map` as a prop to a child component that uses it in `useMemo`, memoize it in the parent: `useMemo(() => new Map(...), [deps])` — otherwise the child memo never caches
 
 ## Environment variables
 
