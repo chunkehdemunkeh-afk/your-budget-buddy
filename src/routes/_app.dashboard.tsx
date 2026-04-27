@@ -4,7 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatMoney, formatShortDate } from "@/lib/format";
 import { calculateCurrentBalance, type BalanceTransaction } from "@/lib/balance";
-import { TrendingUp, TrendingDown, Wallet, Target as TargetIcon, Trash2 } from "lucide-react";
+import {
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  Target as TargetIcon,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -18,6 +26,7 @@ import {
 } from "recharts";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({
@@ -28,6 +37,8 @@ export const Route = createFileRoute("/_app/dashboard")({
   }),
   component: DashboardPage,
 });
+
+// ─── Interfaces ────────────────────────────────────────────────────────────────
 
 interface Tx {
   id: string;
@@ -57,6 +68,157 @@ interface Recurring {
   next_run: string;
   kind: "income" | "outgoing" | "shopping";
 }
+interface AllRecurringRule {
+  id: string;
+  name: string;
+  amount: number;
+  next_run: string;
+  frequency: "weekly" | "fortnightly" | "monthly" | "yearly";
+  kind: "income" | "outgoing" | "shopping";
+}
+interface WeekItem {
+  name: string;
+  amount: number;
+  kind: "income" | "outgoing" | "shopping";
+  isProjected: boolean;
+}
+
+// ─── Week-ahead helpers ─────────────────────────────────────────────────────────
+
+function toLocalDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function getWeekBounds(offset: number) {
+  const now = new Date();
+  const dow = now.getDay(); // 0 = Sun
+  const daysToMon = dow === 0 ? -6 : 1 - dow;
+  const mon = new Date(now);
+  mon.setDate(now.getDate() + daysToMon + offset * 7);
+  mon.setHours(0, 0, 0, 0);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  const startStr = toLocalDate(mon);
+  const endStr = toLocalDate(sun);
+  const shortFmt: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
+  const label =
+    `${mon.toLocaleDateString("en-GB", shortFmt)} – ` +
+    `${sun.toLocaleDateString("en-GB", { ...shortFmt, year: "numeric" })}`;
+  return { startStr, endStr, label };
+}
+
+function stepByFrequency(dateStr: string, frequency: string, direction: 1 | -1): string {
+  const d = new Date(dateStr + "T12:00:00");
+  switch (frequency) {
+    case "weekly":
+      d.setDate(d.getDate() + 7 * direction);
+      break;
+    case "fortnightly":
+      d.setDate(d.getDate() + 14 * direction);
+      break;
+    case "monthly":
+      d.setMonth(d.getMonth() + direction);
+      break;
+    case "yearly":
+      d.setFullYear(d.getFullYear() + direction);
+      break;
+  }
+  return toLocalDate(d);
+}
+
+function occurrencesInRange(
+  nextRun: string,
+  frequency: string,
+  startStr: string,
+  endStr: string,
+): string[] {
+  let cur = nextRun;
+  // Walk backward until prev would fall before startStr
+  for (let i = 0; i < 500; i++) {
+    const prev = stepByFrequency(cur, frequency, -1);
+    if (prev < startStr) break;
+    cur = prev;
+  }
+  // Advance if we're still before startStr
+  for (let i = 0; i < 500 && cur < startStr; i++) {
+    cur = stepByFrequency(cur, frequency, 1);
+  }
+  const results: string[] = [];
+  for (let i = 0; i < 500 && cur <= endStr; i++) {
+    if (cur >= startStr) results.push(cur);
+    cur = stepByFrequency(cur, frequency, 1);
+  }
+  return results;
+}
+
+function computeWeekBalance(
+  weekOffset: number,
+  currentBalance: number,
+  filteredTxs: BalanceTransaction[],
+  allRecurring: AllRecurringRule[],
+  todayStr: string,
+): { opening: number; closing: number } {
+  const { startStr, endStr } = getWeekBounds(weekOffset);
+
+  if (weekOffset <= 0) {
+    // Opening = currentBalance minus net of all actual tx from this week's Monday to today
+    const txFromStart = filteredTxs.filter(
+      (tx) => tx.occurred_on >= startStr && tx.occurred_on <= todayStr,
+    );
+    const netToDate = txFromStart.reduce(
+      (s, tx) => (tx.kind === "income" ? s + Number(tx.amount) : s - Number(tx.amount)),
+      0,
+    );
+    const opening = currentBalance - netToDate;
+
+    // Closing = opening + net of actual tx for the full week + projected recurring for future days
+    const txInWeek = filteredTxs.filter(
+      (tx) => tx.occurred_on >= startStr && tx.occurred_on <= endStr,
+    );
+    const actualNet = txInWeek.reduce(
+      (s, tx) => (tx.kind === "income" ? s + Number(tx.amount) : s - Number(tx.amount)),
+      0,
+    );
+
+    let projectedNet = 0;
+    if (weekOffset === 0) {
+      const tomorrow = new Date(todayStr + "T12:00:00");
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = toLocalDate(tomorrow);
+      if (tomorrowStr <= endStr) {
+        allRecurring.forEach((rule) => {
+          occurrencesInRange(rule.next_run, rule.frequency, tomorrowStr, endStr).forEach(() => {
+            projectedNet += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
+          });
+        });
+      }
+    }
+
+    return { opening, closing: opening + actualNet + projectedNet };
+  }
+
+  // Future week: chain from closing of week 0
+  const week0 = computeWeekBalance(0, currentBalance, filteredTxs, allRecurring, todayStr);
+  let balance = week0.closing;
+  for (let w = 1; w < weekOffset; w++) {
+    const { startStr: ws, endStr: we } = getWeekBounds(w);
+    allRecurring.forEach((rule) => {
+      occurrencesInRange(rule.next_run, rule.frequency, ws, we).forEach(() => {
+        balance += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
+      });
+    });
+  }
+  const opening = balance;
+  let weekNet = 0;
+  allRecurring.forEach((rule) => {
+    occurrencesInRange(rule.next_run, rule.frequency, startStr, endStr).forEach(() => {
+      weekNet += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
+    });
+  });
+  return { opening, closing: opening + weekNet };
+}
+
+// ─── Dashboard ──────────────────────────────────────────────────────────────────
 
 function DashboardPage() {
   const { user } = useAuth();
@@ -65,9 +227,12 @@ function DashboardPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [contribTotals, setContribTotals] = useState<Record<string, number>>({});
   const [upcoming, setUpcoming] = useState<Recurring[]>([]);
-  const [openingBalance, setOpeningBalance] = useState(0);
   const [currentBalance, setCurrentBalance] = useState(0);
+  const [allTxs, setAllTxs] = useState<BalanceTransaction[]>([]);
+  const [allRecurringRules, setAllRecurringRules] = useState<AllRecurringRule[]>([]);
+  const [obDate, setObDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [weekOffset, setWeekOffset] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -79,31 +244,41 @@ function DashboardPage() {
       sixMonthsAgo.setDate(1);
       const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0, 10);
 
-      const today = new Date().toISOString().slice(0, 10);
+      const today = toLocalDate(new Date());
       const in7 = new Date();
       in7.setDate(in7.getDate() + 7);
 
-      const [txRes, catRes, goalRes, contribRes, recRes, profileRes, allTxRes] = await Promise.all([
-        supabase
-          .from("transactions")
-          .select("id, kind, amount, occurred_on, note, source, category_id")
-          .gte("occurred_on", sixMonthsAgoStr)
-          .order("occurred_on", { ascending: false })
-          .limit(500),
-        supabase.from("categories").select("id, name, color, type"),
-        supabase.from("goals").select("id, name, target_amount, color"),
-        supabase.from("goal_contributions").select("goal_id, amount"),
-        supabase
-          .from("recurring_rules")
-          .select("id, name, amount, next_run, kind")
-          .eq("paused", false)
-          .gte("next_run", today)
-          .lte("next_run", in7.toISOString().slice(0, 10))
-          .order("next_run", { ascending: true })
-          .limit(10),
-        supabase.from("profiles").select("opening_balance, opening_balance_date").eq("id", user.id).maybeSingle(),
-        supabase.from("transactions").select("kind, amount, occurred_on"),
-      ]);
+      const [txRes, catRes, goalRes, contribRes, recRes, profileRes, allTxRes, allRecurRes] =
+        await Promise.all([
+          supabase
+            .from("transactions")
+            .select("id, kind, amount, occurred_on, note, source, category_id")
+            .gte("occurred_on", sixMonthsAgoStr)
+            .order("occurred_on", { ascending: false })
+            .limit(500),
+          supabase.from("categories").select("id, name, color, type"),
+          supabase.from("goals").select("id, name, target_amount, color"),
+          supabase.from("goal_contributions").select("goal_id, amount"),
+          supabase
+            .from("recurring_rules")
+            .select("id, name, amount, next_run, kind")
+            .eq("paused", false)
+            .gte("next_run", today)
+            .lte("next_run", in7.toISOString().slice(0, 10))
+            .order("next_run", { ascending: true })
+            .limit(10),
+          supabase
+            .from("profiles")
+            .select("opening_balance, opening_balance_date")
+            .eq("id", user.id)
+            .maybeSingle(),
+          supabase.from("transactions").select("kind, amount, occurred_on"),
+          supabase
+            .from("recurring_rules")
+            .select("id, name, amount, next_run, frequency, kind")
+            .eq("paused", false)
+            .order("next_run", { ascending: true }),
+        ]);
 
       if (!mounted) return;
       setTransactions((txRes.data as Tx[]) ?? []);
@@ -115,26 +290,35 @@ function DashboardPage() {
       });
       setContribTotals(totals);
       setUpcoming((recRes.data as Recurring[]) ?? []);
-      const profileData = profileRes.data as { opening_balance: number; opening_balance_date: string | null } | null;
+
+      const profileData = profileRes.data as {
+        opening_balance: number;
+        opening_balance_date: string | null;
+      } | null;
       const ob = Number(profileData?.opening_balance ?? 0);
-      const obDate = profileData?.opening_balance_date ?? null;
-      setOpeningBalance(ob);
-      
+      const obDateVal = profileData?.opening_balance_date ?? null;
+      setObDate(obDateVal);
+
       const allTx = (allTxRes.data as BalanceTransaction[]) ?? [];
-      setCurrentBalance(calculateCurrentBalance({
-        openingBalance: ob,
-        openingBalanceDate: obDate,
-        transactions: allTx,
-      }));
+      setAllTxs(allTx);
+      setCurrentBalance(
+        calculateCurrentBalance({
+          openingBalance: ob,
+          openingBalanceDate: obDateVal,
+          transactions: allTx,
+        }),
+      );
+      setAllRecurringRules((allRecurRes.data as AllRecurringRule[]) ?? []);
       setLoading(false);
     }
 
     load();
 
-    // Realtime
     const channel = supabase
       .channel("dashboard")
-      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "transactions" }, () =>
+        load(),
+      )
       .on("postgres_changes", { event: "*", schema: "public", table: "goals" }, () => load())
       .on(
         "postgres_changes",
@@ -185,7 +369,6 @@ function DashboardPage() {
       });
     const byCategory = Array.from(catTotals.values()).sort((a, b) => b.total - a.total);
 
-    // 6 month trend
     const trend: { month: string; income: number; outgoing: number }[] = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -205,7 +388,6 @@ function DashboardPage() {
     }
 
     const recent = transactions.slice(0, 6);
-
     return { incomeMonth, outgoingMonth, byCategory, monthlyTrend: trend, recent };
   }, [transactions, categories]);
 
@@ -223,7 +405,7 @@ function DashboardPage() {
 
   const monthBalance = incomeMonth - outgoingMonth;
   const monthLabel = new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-  const catMap = new Map(categories.map((c) => [c.id, c]));
+  const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 pt-6 pb-10 md:px-8 md:pt-10">
@@ -240,10 +422,16 @@ function DashboardPage() {
           <Wallet className="h-4 w-4" />
           Current balance
         </div>
-        <p className="mt-2 text-4xl font-bold tracking-tight md:text-5xl">{formatMoney(currentBalance)}</p>
+        <p className="mt-2 text-4xl font-bold tracking-tight md:text-5xl">
+          {formatMoney(currentBalance)}
+        </p>
         <div className="mt-6 grid grid-cols-3 gap-3">
           <Stat label="This month in" value={incomeMonth} icon={<TrendingUp className="h-4 w-4" />} />
-          <Stat label="This month out" value={outgoingMonth} icon={<TrendingDown className="h-4 w-4" />} />
+          <Stat
+            label="This month out"
+            value={outgoingMonth}
+            icon={<TrendingDown className="h-4 w-4" />}
+          />
           <Stat label="Month net" value={monthBalance} icon={<Wallet className="h-4 w-4" />} />
         </div>
       </div>
@@ -285,10 +473,7 @@ function DashboardPage() {
                 {byCategory.slice(0, 5).map((c) => (
                   <li key={c.name} className="flex items-center justify-between">
                     <span className="flex items-center gap-2">
-                      <span
-                        className="h-2.5 w-2.5 rounded-full"
-                        style={{ background: c.color }}
-                      />
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
                       {c.name}
                     </span>
                     <span className="font-medium">{formatMoney(c.total)}</span>
@@ -330,6 +515,20 @@ function DashboardPage() {
             </ResponsiveContainer>
           </div>
         </Card>
+      </div>
+
+      {/* Week Ahead */}
+      <div className="mb-6">
+        <WeekAheadSection
+          weekOffset={weekOffset}
+          setWeekOffset={setWeekOffset}
+          currentBalance={currentBalance}
+          allTxs={allTxs}
+          transactions={transactions}
+          allRecurring={allRecurringRules}
+          catMap={catMap}
+          openingBalanceDate={obDate}
+        />
       </div>
 
       {/* Goals + Upcoming */}
@@ -378,9 +577,7 @@ function DashboardPage() {
                 >
                   <span>
                     <span className="font-medium">{r.name}</span>
-                    <span className="ml-2 text-muted-foreground">
-                      {formatShortDate(r.next_run)}
-                    </span>
+                    <span className="ml-2 text-muted-foreground">{formatShortDate(r.next_run)}</span>
                   </span>
                   <span
                     className={
@@ -412,7 +609,10 @@ function DashboardPage() {
                 <li key={t.id} className="group flex items-center gap-3 py-2.5">
                   <span
                     className="h-9 w-9 shrink-0 rounded-xl"
-                    style={{ background: (cat?.color ?? "#9ca3af") + "33", borderLeft: `3px solid ${cat?.color ?? "#9ca3af"}` }}
+                    style={{
+                      background: (cat?.color ?? "#9ca3af") + "33",
+                      borderLeft: `3px solid ${cat?.color ?? "#9ca3af"}`,
+                    }}
                   />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">{t.source ?? cat?.name ?? "Entry"}</p>
@@ -446,6 +646,250 @@ function DashboardPage() {
     </div>
   );
 }
+
+// ─── Week Ahead Section ─────────────────────────────────────────────────────────
+
+function WeekAheadSection({
+  weekOffset,
+  setWeekOffset,
+  currentBalance,
+  allTxs,
+  transactions,
+  allRecurring,
+  catMap,
+  openingBalanceDate,
+}: {
+  weekOffset: number;
+  setWeekOffset: (n: number) => void;
+  currentBalance: number;
+  allTxs: BalanceTransaction[];
+  transactions: Tx[];
+  allRecurring: AllRecurringRule[];
+  catMap: Map<string, Cat>;
+  openingBalanceDate: string | null;
+}) {
+  const { startStr, endStr, label } = getWeekBounds(weekOffset);
+  const todayStr = toLocalDate(new Date());
+
+  // Build 7 day slots
+  const days: string[] = [];
+  {
+    const d = new Date(startStr + "T12:00:00");
+    for (let i = 0; i < 7; i++) {
+      days.push(toLocalDate(d));
+      d.setDate(d.getDate() + 1);
+    }
+  }
+
+  // Items per day
+  const itemsByDay = useMemo(() => {
+    const result: Record<string, WeekItem[]> = {};
+    days.forEach((ds) => (result[ds] = []));
+
+    // Actual transactions (6-month window covers most cases)
+    transactions.forEach((tx) => {
+      if (tx.occurred_on >= startStr && tx.occurred_on <= endStr) {
+        const cat = tx.category_id ? catMap.get(tx.category_id) : null;
+        result[tx.occurred_on]?.push({
+          name: tx.source ?? cat?.name ?? "Entry",
+          amount: Number(tx.amount),
+          kind: tx.kind,
+          isProjected: false,
+        });
+      }
+    });
+
+    // Projected recurring rules for future days only
+    const futureFrom =
+      weekOffset > 0
+        ? startStr
+        : (() => {
+            const t = new Date(todayStr + "T12:00:00");
+            t.setDate(t.getDate() + 1);
+            return toLocalDate(t);
+          })();
+
+    if (futureFrom <= endStr) {
+      allRecurring.forEach((rule) => {
+        occurrencesInRange(rule.next_run, rule.frequency, futureFrom, endStr).forEach((ds) => {
+          result[ds]?.push({
+            name: rule.name,
+            amount: Number(rule.amount),
+            kind: rule.kind,
+            isProjected: true,
+          });
+        });
+      });
+    }
+
+    return result;
+  }, [startStr, endStr, weekOffset, transactions, allRecurring, catMap, todayStr]);
+
+  // Opening / closing balances
+  const { opening, closing } = useMemo(() => {
+    const filtered = openingBalanceDate
+      ? allTxs.filter((tx) => tx.occurred_on >= openingBalanceDate)
+      : allTxs;
+    return computeWeekBalance(weekOffset, currentBalance, filtered, allRecurring, todayStr);
+  }, [weekOffset, currentBalance, allTxs, allRecurring, openingBalanceDate, todayStr]);
+
+  const weekNet = closing - opening;
+
+  return (
+    <section className="rounded-3xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+      {/* Header */}
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-muted-foreground">Week ahead</h2>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setWeekOffset(weekOffset - 1)}
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Previous week"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <span className="min-w-[160px] text-center text-xs font-medium tabular-nums">
+            {label}
+          </span>
+          <button
+            onClick={() => setWeekOffset(weekOffset + 1)}
+            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Next week"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Opening balance */}
+      <div className="mb-3 flex items-center justify-between rounded-2xl bg-muted/50 px-4 py-2.5 text-sm">
+        <span className="text-muted-foreground">Opening balance</span>
+        <span className="font-semibold tabular-nums">{formatMoney(opening)}</span>
+      </div>
+
+      {/* Daily rows */}
+      <div className="space-y-1.5">
+        {days.map((ds) => {
+          const items = itemsByDay[ds] ?? [];
+          const isToday = ds === todayStr;
+          const isPast = ds < todayStr;
+          const dayNet = items.reduce(
+            (s, it) => (it.kind === "income" ? s + it.amount : s - it.amount),
+            0,
+          );
+          const dayLabel = new Date(ds + "T12:00:00").toLocaleDateString("en-GB", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+          });
+
+          return (
+            <div
+              key={ds}
+              className={cn(
+                "rounded-2xl px-3 py-2.5",
+                isToday
+                  ? "bg-primary/8 ring-1 ring-primary/20"
+                  : isPast
+                    ? "bg-muted/20"
+                    : "bg-muted/40",
+              )}
+            >
+              {/* Day header */}
+              <div className="flex items-center justify-between">
+                <span
+                  className={cn(
+                    "text-xs font-semibold",
+                    isToday ? "text-primary" : isPast ? "text-muted-foreground" : "text-foreground",
+                  )}
+                >
+                  {dayLabel}
+                  {isToday && (
+                    <span className="ml-2 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      Today
+                    </span>
+                  )}
+                </span>
+                {items.length > 0 && (
+                  <span
+                    className={cn(
+                      "text-xs font-semibold tabular-nums",
+                      dayNet >= 0 ? "text-success" : "text-destructive",
+                    )}
+                  >
+                    {dayNet >= 0 ? "+" : "−"}
+                    {formatMoney(Math.abs(dayNet))}
+                  </span>
+                )}
+              </div>
+
+              {/* Items */}
+              {items.length > 0 && (
+                <ul className="mt-1.5 space-y-1">
+                  {items.map((item, i) => (
+                    <li key={i} className="flex items-center justify-between text-xs">
+                      <span
+                        className={cn(
+                          "flex items-center gap-1.5",
+                          item.isProjected ? "text-muted-foreground" : "text-foreground",
+                        )}
+                      >
+                        {item.isProjected && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                        )}
+                        {item.name}
+                      </span>
+                      <span
+                        className={cn(
+                          "font-medium tabular-nums",
+                          item.kind === "income" ? "text-success" : "text-destructive",
+                          item.isProjected && "opacity-70",
+                        )}
+                      >
+                        {item.kind === "income" ? "+" : "−"}
+                        {formatMoney(item.amount)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {items.length === 0 && (
+                <p className="mt-0.5 text-xs text-muted-foreground/40">Nothing scheduled</p>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Closing balance */}
+      <div className="mt-3 flex items-center justify-between rounded-2xl bg-muted/50 px-4 py-2.5 text-sm">
+        <span className="text-muted-foreground">Closing balance</span>
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              "text-xs font-medium",
+              weekNet >= 0 ? "text-success" : "text-destructive",
+            )}
+          >
+            {weekNet >= 0 ? "+" : "−"}
+            {formatMoney(Math.abs(weekNet))}
+          </span>
+          <span
+            className={cn(
+              "font-semibold tabular-nums",
+              closing < 0 ? "text-destructive" : "text-foreground",
+            )}
+          >
+            {formatMoney(closing)}
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ─── Small shared components ────────────────────────────────────────────────────
 
 function Stat({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
   return (
