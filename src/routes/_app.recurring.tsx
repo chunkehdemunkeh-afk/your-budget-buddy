@@ -6,6 +6,8 @@ import { useCategories } from "@/hooks/useCategories";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -16,7 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Repeat, Pencil, Trash2, Play, Repeat2 } from "lucide-react";
+import { Plus, Repeat, Pencil, Trash2, Play, Repeat2, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { formatMoney, formatShortDate } from "@/lib/format";
 import { frequencyLabel, nextRunFrom, toDateOnly, displayNextRun } from "@/lib/recurring";
@@ -28,6 +30,15 @@ export const Route = createFileRoute("/_app/recurring")({
   component: RecurringPage,
 });
 
+interface OneOffBill {
+  id: string;
+  name: string;
+  amount: number | null;
+  due_date: string | null;
+  paid: boolean;
+  paid_at: string | null;
+}
+
 function RecurringPage() {
   const { user } = useAuth();
   const { categories } = useCategories();
@@ -37,6 +48,15 @@ function RecurringPage() {
   const [editing, setEditing] = useState<RecurringRule | null>(null);
   const [defaultKind, setDefaultKind] = useState<"income" | "outgoing">("outgoing");
   const [confirmDelete, setConfirmDelete] = useState<RecurringRule | null>(null);
+
+  // One-off bills
+  const [oneOffBills, setOneOffBills] = useState<OneOffBill[]>([]);
+  const [oneOffLoading, setOneOffLoading] = useState(true);
+  const [newBillName, setNewBillName] = useState("");
+  const [newBillAmount, setNewBillAmount] = useState("");
+  const [newBillDue, setNewBillDue] = useState("");
+  const [addingBill, setAddingBill] = useState(false);
+  const [confirmDeleteBill, setConfirmDeleteBill] = useState<OneOffBill | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -64,9 +84,38 @@ function RecurringPage() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    async function loadBills() {
+      const { data, error } = await supabase
+        .from("one_off_bills")
+        .select("id, name, amount, due_date, paid, paid_at")
+        .order("paid", { ascending: true })
+        .order("due_date", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: true });
+      if (!mounted) return;
+      if (error) toast.error(error.message);
+      setOneOffBills((data as OneOffBill[]) ?? []);
+      setOneOffLoading(false);
+    }
+    loadBills();
+    const channel = supabase
+      .channel("one-off-bills")
+      .on("postgres_changes", { event: "*", schema: "public", table: "one_off_bills" }, () =>
+        loadBills(),
+      )
+      .subscribe();
+    return () => {
+      mounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const outgoing = rules.filter((r) => r.kind === "outgoing");
   const income = rules.filter((r) => r.kind === "income");
+  const unpaidBills = oneOffBills.filter((b) => !b.paid).length;
 
   async function togglePaused(rule: RecurringRule) {
     const { error } = await supabase
@@ -99,7 +148,7 @@ function RecurringPage() {
 
   async function handleDelete() {
     if (!confirmDelete) return;
-    
+
     // First, detach any existing transactions so they stay intact without violating the foreign key constraint
     await supabase
       .from("transactions")
@@ -111,10 +160,45 @@ function RecurringPage() {
       .from("recurring_rules")
       .delete()
       .eq("id", confirmDelete.id);
-      
+
     setConfirmDelete(null);
     if (error) toast.error(error.message);
     else toast.success("Deleted");
+  }
+
+  async function toggleBillPaid(bill: OneOffBill) {
+    const paid = !bill.paid;
+    const { error } = await supabase
+      .from("one_off_bills")
+      .update({ paid, paid_at: paid ? new Date().toISOString() : null })
+      .eq("id", bill.id);
+    if (error) toast.error(error.message);
+  }
+
+  async function addBill() {
+    if (!user || !newBillName.trim()) return;
+    setAddingBill(true);
+    const amount = newBillAmount ? Number(newBillAmount) : null;
+    const due_date = newBillDue || null;
+    const { error } = await supabase.from("one_off_bills").insert({
+      user_id: user.id,
+      name: newBillName.trim(),
+      amount,
+      due_date,
+    });
+    setAddingBill(false);
+    if (error) { toast.error(error.message); return; }
+    setNewBillName("");
+    setNewBillAmount("");
+    setNewBillDue("");
+  }
+
+  async function deleteBill() {
+    if (!confirmDeleteBill) return;
+    const { error } = await supabase.from("one_off_bills").delete().eq("id", confirmDeleteBill.id);
+    setConfirmDeleteBill(null);
+    if (error) toast.error(error.message);
+    else toast.success("Removed");
   }
 
   function openAdd(kind: "income" | "outgoing") {
@@ -140,12 +224,15 @@ function RecurringPage() {
       </header>
 
       <Tabs defaultValue="outgoing">
-        <TabsList className="grid w-full grid-cols-2 rounded-xl">
+        <TabsList className="grid w-full grid-cols-3 rounded-xl">
           <TabsTrigger value="outgoing" className="rounded-lg">
             Bills ({outgoing.length})
           </TabsTrigger>
           <TabsTrigger value="income" className="rounded-lg">
             Income ({income.length})
+          </TabsTrigger>
+          <TabsTrigger value="oneoff" className="rounded-lg">
+            One-off {unpaidBills > 0 && `(${unpaidBills})`}
           </TabsTrigger>
         </TabsList>
 
@@ -186,6 +273,50 @@ function RecurringPage() {
             onRunNow={runNow}
           />
         </TabsContent>
+
+        <TabsContent value="oneoff" className="mt-5 space-y-4">
+          {/* Add form */}
+          <div className="rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)] space-y-3">
+            <p className="text-sm font-semibold">Add one-off bill</p>
+            <Input
+              placeholder="Bill name"
+              value={newBillName}
+              onChange={(e) => setNewBillName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addBill()}
+            />
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                placeholder="Amount (optional)"
+                value={newBillAmount}
+                onChange={(e) => setNewBillAmount(e.target.value)}
+                className="flex-1"
+              />
+              <Input
+                type="date"
+                placeholder="Due date"
+                value={newBillDue}
+                onChange={(e) => setNewBillDue(e.target.value)}
+                className="flex-1"
+              />
+            </div>
+            <Button
+              onClick={addBill}
+              disabled={!newBillName.trim() || addingBill}
+              className="h-10 w-full rounded-xl bg-[image:var(--gradient-primary)] font-semibold text-primary-foreground shadow-[var(--shadow-glow)]"
+            >
+              <Plus className="h-4 w-4" /> Add
+            </Button>
+          </div>
+
+          {/* Bill list */}
+          <OneOffList
+            bills={oneOffBills}
+            loading={oneOffLoading}
+            onToggle={toggleBillPaid}
+            onDelete={(b) => setConfirmDeleteBill(b)}
+          />
+        </TabsContent>
       </Tabs>
 
       <RecurringSheet
@@ -214,7 +345,120 @@ function RecurringPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog open={!!confirmDeleteBill} onOpenChange={(v) => !v && setConfirmDeleteBill(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove this bill?</AlertDialogTitle>
+            <AlertDialogDescription>
+              "{confirmDeleteBill?.name}" will be removed from your list.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={deleteBill}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+function OneOffList({
+  bills,
+  loading,
+  onToggle,
+  onDelete,
+}: {
+  bills: OneOffBill[];
+  loading: boolean;
+  onToggle: (b: OneOffBill) => void;
+  onDelete: (b: OneOffBill) => void;
+}) {
+  if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>;
+  if (bills.length === 0) {
+    return (
+      <div className="rounded-3xl border border-dashed border-border bg-card/50 py-12 text-center">
+        <ClipboardList className="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
+        <p className="text-sm text-muted-foreground">No one-off bills yet.</p>
+      </div>
+    );
+  }
+
+  const unpaid = bills.filter((b) => !b.paid);
+  const paid = bills.filter((b) => b.paid);
+
+  return (
+    <div className="space-y-4">
+      {unpaid.length > 0 && (
+        <ul className="space-y-2.5">
+          {unpaid.map((b) => <BillItem key={b.id} bill={b} onToggle={onToggle} onDelete={onDelete} />)}
+        </ul>
+      )}
+      {paid.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Paid</p>
+          <ul className="space-y-2">
+            {paid.map((b) => <BillItem key={b.id} bill={b} onToggle={onToggle} onDelete={onDelete} />)}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BillItem({
+  bill,
+  onToggle,
+  onDelete,
+}: {
+  bill: OneOffBill;
+  onToggle: (b: OneOffBill) => void;
+  onDelete: (b: OneOffBill) => void;
+}) {
+  const today = toDateOnly(new Date());
+  const overdue = !bill.paid && bill.due_date && bill.due_date < today;
+
+  return (
+    <li
+      className={cn(
+        "flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-[var(--shadow-soft)] transition-opacity",
+        bill.paid && "opacity-50",
+      )}
+    >
+      <Checkbox
+        checked={bill.paid}
+        onCheckedChange={() => onToggle(bill)}
+        className="h-5 w-5 shrink-0"
+      />
+      <div className="min-w-0 flex-1">
+        <p className={cn("truncate font-semibold", bill.paid && "line-through text-muted-foreground")}>
+          {bill.name}
+        </p>
+        {(bill.amount != null || bill.due_date) && (
+          <p className={cn("mt-0.5 text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>
+            {bill.amount != null && formatMoney(bill.amount)}
+            {bill.amount != null && bill.due_date && " · "}
+            {bill.due_date && `Due ${formatShortDate(bill.due_date)}`}
+            {overdue && " · Overdue"}
+          </p>
+        )}
+      </div>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => onDelete(bill)}
+        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+        aria-label="Remove"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </Button>
+    </li>
   );
 }
 
@@ -300,7 +544,7 @@ function RuleList({
                   className="h-8 gap-1 px-2 text-xs"
                   title="Post now and roll forward"
                 >
-                  <Play className="h-3.5 w-3.5" /> Run now
+                  <Play className="h-3.5 w-3.5" /> Pay now
                 </Button>
                 <Button
                   variant="ghost"
