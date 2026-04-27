@@ -56,7 +56,7 @@ Routes live in `src/routes/` and are file-based (TanStack Router). The `routeTre
 
 Never import `client.server` in client-facing components.
 
-`src/integrations/supabase/types.ts` is the generated DB type file — regenerate with the Supabase CLI when the schema changes, don't hand-edit it.
+`src/integrations/supabase/types.ts` is generated — prefer `bunx supabase gen types` after schema changes, but hand-editing the Row/Insert/Update blocks is acceptable when the CLI isn't available.
 
 ## Database schema (key tables)
 
@@ -64,7 +64,7 @@ Never import `client.server` in client-facing components.
 - `recurring_rules` — `frequency: "weekly" | "fortnightly" | "monthly" | "yearly"`, `next_run: date`, `paused: boolean`. The cron endpoint inserts a transaction and advances `next_run` each cycle.
 - `goals` + `goal_contributions` — savings goals with individual deposits
 - `categories` — user-owned, typed `"income" | "outgoing"`, carry a hex `color`
-- `profiles` — per-user `currency` preference and `display_name`
+- `profiles` — per-user `currency`, `display_name`, `opening_balance` (numeric, default 0)
 
 ## Data fetching pattern
 

@@ -63,6 +63,8 @@ function DashboardPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [contribTotals, setContribTotals] = useState<Record<string, number>>({});
   const [upcoming, setUpcoming] = useState<Recurring[]>([]);
+  const [openingBalance, setOpeningBalance] = useState(0);
+  const [allTimeTotals, setAllTimeTotals] = useState({ income: 0, outgoing: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -78,7 +80,7 @@ function DashboardPage() {
       const in7 = new Date();
       in7.setDate(in7.getDate() + 7);
 
-      const [txRes, catRes, goalRes, contribRes, recRes] = await Promise.all([
+      const [txRes, catRes, goalRes, contribRes, recRes, profileRes, allTxRes] = await Promise.all([
         supabase
           .from("transactions")
           .select("id, kind, amount, occurred_on, note, source, category_id")
@@ -95,6 +97,8 @@ function DashboardPage() {
           .lte("next_run", in7.toISOString().slice(0, 10))
           .order("next_run", { ascending: true })
           .limit(10),
+        supabase.from("profiles").select("opening_balance").eq("id", user.id).maybeSingle(),
+        supabase.from("transactions").select("kind, amount"),
       ]);
 
       if (!mounted) return;
@@ -107,6 +111,12 @@ function DashboardPage() {
       });
       setContribTotals(totals);
       setUpcoming((recRes.data as Recurring[]) ?? []);
+      setOpeningBalance(Number((profileRes.data as { opening_balance: number } | null)?.opening_balance ?? 0));
+      const allTx = (allTxRes.data as { kind: string; amount: number }[]) ?? [];
+      setAllTimeTotals({
+        income: allTx.filter((t) => t.kind === "income").reduce((s, t) => s + Number(t.amount), 0),
+        outgoing: allTx.filter((t) => t.kind !== "income").reduce((s, t) => s + Number(t.amount), 0),
+      });
       setLoading(false);
     }
 
@@ -189,7 +199,8 @@ function DashboardPage() {
     return { incomeMonth, outgoingMonth, byCategory, monthlyTrend: trend, recent };
   }, [transactions, categories]);
 
-  const balance = incomeMonth - outgoingMonth;
+  const monthBalance = incomeMonth - outgoingMonth;
+  const currentBalance = openingBalance + allTimeTotals.income - allTimeTotals.outgoing;
   const monthLabel = new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const catMap = new Map(categories.map((c) => [c.id, c]));
 
@@ -206,12 +217,13 @@ function DashboardPage() {
       <div className="mb-6 rounded-3xl bg-[image:var(--gradient-primary)] p-6 text-primary-foreground shadow-[var(--shadow-glow)] md:p-8">
         <div className="flex items-center gap-2 text-sm opacity-90">
           <Wallet className="h-4 w-4" />
-          Money left this month
+          Current balance
         </div>
-        <p className="mt-2 text-4xl font-bold tracking-tight md:text-5xl">{formatMoney(balance)}</p>
-        <div className="mt-6 grid grid-cols-2 gap-4">
-          <Stat label="Income" value={incomeMonth} icon={<TrendingUp className="h-4 w-4" />} />
-          <Stat label="Outgoings" value={outgoingMonth} icon={<TrendingDown className="h-4 w-4" />} />
+        <p className="mt-2 text-4xl font-bold tracking-tight md:text-5xl">{formatMoney(currentBalance)}</p>
+        <div className="mt-6 grid grid-cols-3 gap-3">
+          <Stat label="This month in" value={incomeMonth} icon={<TrendingUp className="h-4 w-4" />} />
+          <Stat label="This month out" value={outgoingMonth} icon={<TrendingDown className="h-4 w-4" />} />
+          <Stat label="Month net" value={monthBalance} icon={<Wallet className="h-4 w-4" />} />
         </div>
       </div>
 

@@ -16,24 +16,33 @@ export const Route = createFileRoute("/_app/settings")({
 function SettingsPage() {
   const { user, signOut } = useAuth();
   const [displayName, setDisplayName] = useState("");
+  const [openingBalance, setOpeningBalance] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     supabase
       .from("profiles")
-      .select("display_name")
+      .select("display_name, opening_balance")
       .eq("id", user.id)
       .maybeSingle()
-      .then(({ data }) => setDisplayName(data?.display_name ?? ""));
+      .then(({ data }) => {
+        setDisplayName(data?.display_name ?? "");
+        setOpeningBalance(String(data?.opening_balance ?? 0));
+      });
   }, [user]);
 
-  async function saveName() {
+  async function saveProfile() {
     if (!user) return;
+    const bal = parseFloat(openingBalance);
+    if (isNaN(bal) || bal < 0) {
+      toast.error("Opening balance must be 0 or more");
+      return;
+    }
     setSaving(true);
     const { error } = await supabase
       .from("profiles")
-      .update({ display_name: displayName.trim() || null })
+      .update({ display_name: displayName.trim() || null, opening_balance: bal })
       .eq("id", user.id);
     setSaving(false);
     if (error) toast.error(error.message);
@@ -64,7 +73,7 @@ function SettingsPage() {
               <p className="mt-1 text-sm text-muted-foreground">{user?.email}</p>
             </div>
             <Button
-              onClick={saveName}
+              onClick={saveProfile}
               disabled={saving}
               className="h-10 w-full rounded-xl bg-[image:var(--gradient-primary)] font-semibold text-primary-foreground shadow-[var(--shadow-soft)]"
             >
@@ -72,6 +81,31 @@ function SettingsPage() {
               {saving ? "Saving…" : "Save"}
             </Button>
           </div>
+        </section>
+
+        <section className="rounded-3xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+          <h2 className="mb-1 text-sm font-semibold text-muted-foreground">Opening balance</h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Your current account balance. Pursely uses this as the starting point to calculate your running total.
+          </p>
+          <div className="flex items-center rounded-2xl border border-border bg-muted/40 px-4 py-3 focus-within:border-primary">
+            <span className="text-lg font-semibold text-muted-foreground">£</span>
+            <input
+              inputMode="decimal"
+              placeholder="0.00"
+              value={openingBalance}
+              onChange={(e) => setOpeningBalance(e.target.value.replace(/[^\d.]/g, ""))}
+              className="ml-2 w-full bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground/50"
+            />
+          </div>
+          <Button
+            onClick={saveProfile}
+            disabled={saving}
+            className="mt-3 h-10 w-full rounded-xl bg-[image:var(--gradient-primary)] font-semibold text-primary-foreground shadow-[var(--shadow-soft)]"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {saving ? "Saving…" : "Save balance"}
+          </Button>
         </section>
 
         <section className="rounded-3xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">

@@ -269,7 +269,7 @@ function TransactionsPage() {
                           <button
                             onClick={() => setEditTx(t)}
                             aria-label="Edit"
-                            className="rounded-lg p-1.5 text-muted-foreground opacity-0 transition-all hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                            className="rounded-lg p-1.5 text-muted-foreground transition-all hover:bg-muted hover:text-foreground sm:opacity-0 sm:group-hover:opacity-100"
                           >
                             <Pencil className="h-4 w-4" />
                           </button>
@@ -277,7 +277,7 @@ function TransactionsPage() {
                         <button
                           onClick={() => handleDelete(t.id)}
                           aria-label="Delete"
-                          className="rounded-lg p-1.5 text-muted-foreground opacity-0 transition-all hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                          className="rounded-lg p-1.5 text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

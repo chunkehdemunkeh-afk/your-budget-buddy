@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bun lint *)"
+      "Bash(bun lint *)",
+      "Bash(bun run *)",
+      "PowerShell(bun run *)"
     ]
   }
 }
