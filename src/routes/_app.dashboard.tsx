@@ -73,7 +73,7 @@ interface AllRecurringRule {
   name: string;
   amount: number;
   next_run: string;
-  frequency: "weekly" | "fortnightly" | "monthly" | "yearly";
+  frequency: "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly";
   kind: "income" | "outgoing" | "shopping";
 }
 interface WeekItem {
@@ -116,12 +116,18 @@ function stepByFrequency(dateStr: string, frequency: string, direction: 1 | -1):
     case "fortnightly":
       d.setDate(d.getDate() + 14 * direction);
       break;
+    case "fourweekly":
+      d.setDate(d.getDate() + 28 * direction);
+      break;
     case "monthly":
       d.setMonth(d.getMonth() + direction);
       break;
     case "yearly":
       d.setFullYear(d.getFullYear() + direction);
       break;
+    default:
+      // Unknown frequency — advance by 1 day as a safety fallback so loops always terminate
+      d.setDate(d.getDate() + direction);
   }
   return toLocalDate(d);
 }

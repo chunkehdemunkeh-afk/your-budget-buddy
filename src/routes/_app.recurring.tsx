@@ -19,7 +19,7 @@ import {
 import { Plus, Repeat, Pencil, Trash2, Play, Repeat2 } from "lucide-react";
 import { toast } from "sonner";
 import { formatMoney, formatShortDate } from "@/lib/format";
-import { frequencyLabel, nextRunFrom, toDateOnly } from "@/lib/recurring";
+import { frequencyLabel, nextRunFrom, toDateOnly, displayNextRun } from "@/lib/recurring";
 import { RecurringSheet, type RecurringRule } from "@/components/RecurringSheet";
 import { cn } from "@/lib/utils";
 
@@ -282,7 +282,7 @@ function RuleList({
                   </span>
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {frequencyLabel(r.frequency)} · next {formatShortDate(r.next_run)}
+                  {frequencyLabel(r.frequency)} · next {formatShortDate(displayNextRun(r.next_run, r.frequency))}
                   {cat ? ` · ${cat.name}` : ""}
                 </p>
               </div>
