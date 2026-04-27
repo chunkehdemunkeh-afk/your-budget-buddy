@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export interface Category {
@@ -12,6 +12,7 @@ export interface Category {
 export function useCategories() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const channelId = useRef(`categories-hook-${Math.random().toString(36).slice(2)}`);
 
   useEffect(() => {
     let mounted = true;
@@ -27,7 +28,7 @@ export function useCategories() {
     load();
 
     const channel = supabase
-      .channel("categories-hook")
+      .channel(channelId.current)
       .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, () => load())
       .subscribe();
     return () => {
