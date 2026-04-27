@@ -33,7 +33,7 @@ export const Route = createFileRoute("/_app/recurring")({
 interface OneOffBill {
   id: string;
   name: string;
-  amount: number | null;
+  amount: number;
   due_date: string | null;
   paid: boolean;
   paid_at: string | null;
@@ -167,18 +167,31 @@ function RecurringPage() {
   }
 
   async function toggleBillPaid(bill: OneOffBill) {
+    if (!user) return;
     const paid = !bill.paid;
+    if (paid) {
+      const today = toDateOnly(new Date());
+      const { error: txErr } = await supabase.from("transactions").insert({
+        user_id: user.id,
+        kind: "outgoing",
+        amount: bill.amount,
+        occurred_on: today,
+        source: bill.name,
+      });
+      if (txErr) { toast.error(txErr.message); return; }
+    }
     const { error } = await supabase
       .from("one_off_bills")
       .update({ paid, paid_at: paid ? new Date().toISOString() : null })
       .eq("id", bill.id);
     if (error) toast.error(error.message);
+    else if (paid) toast.success(`${bill.name} marked as paid`);
   }
 
   async function addBill() {
-    if (!user || !newBillName.trim()) return;
+    if (!user || !newBillName.trim() || !newBillAmount) return;
     setAddingBill(true);
-    const amount = newBillAmount ? Number(newBillAmount) : null;
+    const amount = Number(newBillAmount);
     const due_date = newBillDue || null;
     const { error } = await supabase.from("one_off_bills").insert({
       user_id: user.id,
@@ -287,7 +300,7 @@ function RecurringPage() {
             <div className="flex gap-2">
               <Input
                 type="number"
-                placeholder="Amount (optional)"
+                placeholder="Amount"
                 value={newBillAmount}
                 onChange={(e) => setNewBillAmount(e.target.value)}
                 className="flex-1"
@@ -302,7 +315,7 @@ function RecurringPage() {
             </div>
             <Button
               onClick={addBill}
-              disabled={!newBillName.trim() || addingBill}
+              disabled={!newBillName.trim() || !newBillAmount || addingBill}
               className="h-10 w-full rounded-xl bg-[image:var(--gradient-primary)] font-semibold text-primary-foreground shadow-[var(--shadow-glow)]"
             >
               <Plus className="h-4 w-4" /> Add
@@ -440,14 +453,11 @@ function BillItem({
         <p className={cn("truncate font-semibold", bill.paid && "line-through text-muted-foreground")}>
           {bill.name}
         </p>
-        {(bill.amount != null || bill.due_date) && (
-          <p className={cn("mt-0.5 text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>
-            {bill.amount != null && formatMoney(bill.amount)}
-            {bill.amount != null && bill.due_date && " · "}
-            {bill.due_date && `Due ${formatShortDate(bill.due_date)}`}
-            {overdue && " · Overdue"}
-          </p>
-        )}
+        <p className={cn("mt-0.5 text-xs", overdue ? "text-destructive" : "text-muted-foreground")}>
+          {formatMoney(bill.amount)}
+          {bill.due_date && ` · Due ${formatShortDate(bill.due_date)}`}
+          {overdue && " · Overdue"}
+        </p>
       </div>
       <Button
         variant="ghost"

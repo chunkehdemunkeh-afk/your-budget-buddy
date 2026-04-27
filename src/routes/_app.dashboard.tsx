@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   PieChart,
   Pie,
@@ -76,11 +77,19 @@ interface AllRecurringRule {
   frequency: "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly";
   kind: "income" | "outgoing" | "shopping";
 }
+interface OneOffBill {
+  id: string;
+  name: string;
+  amount: number;
+  due_date: string; // YYYY-MM-DD
+}
+
 interface WeekItem {
   name: string;
   amount: number;
   kind: "income" | "outgoing" | "shopping";
   isProjected: boolean;
+  oneOffBill?: OneOffBill;
 }
 
 // ─── Week-ahead helpers ─────────────────────────────────────────────────────────
@@ -239,6 +248,7 @@ function DashboardPage() {
   const [obDate, setObDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [oneOffBills, setOneOffBills] = useState<OneOffBill[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -254,7 +264,7 @@ function DashboardPage() {
       const in7 = new Date();
       in7.setDate(in7.getDate() + 7);
 
-      const [txRes, catRes, goalRes, contribRes, recRes, profileRes, allTxRes, allRecurRes] =
+      const [txRes, catRes, goalRes, contribRes, recRes, profileRes, allTxRes, allRecurRes, billsRes] =
         await Promise.all([
           supabase
             .from("transactions")
@@ -284,6 +294,12 @@ function DashboardPage() {
             .select("id, name, amount, next_run, frequency, kind")
             .eq("paused", false)
             .order("next_run", { ascending: true }),
+          supabase
+            .from("one_off_bills")
+            .select("id, name, amount, due_date")
+            .eq("paid", false)
+            .not("due_date", "is", null)
+            .order("due_date", { ascending: true }),
         ]);
 
       if (!mounted) return;
@@ -315,6 +331,7 @@ function DashboardPage() {
         }),
       );
       setAllRecurringRules((allRecurRes.data as AllRecurringRule[]) ?? []);
+      setOneOffBills((billsRes.data as OneOffBill[]) ?? []);
       setLoading(false);
     }
 
@@ -337,6 +354,7 @@ function DashboardPage() {
         () => load(),
       )
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "one_off_bills" }, () => load())
       .subscribe();
 
     return () => {
@@ -407,6 +425,24 @@ function DashboardPage() {
     } else {
       toast.success("Deleted");
     }
+  }
+
+  async function handleToggleBill(bill: OneOffBill) {
+    if (!user) return;
+    const today = toLocalDate(new Date());
+    const { error: txErr } = await supabase.from("transactions").insert({
+      user_id: user.id,
+      kind: "outgoing",
+      amount: bill.amount,
+      occurred_on: today,
+      source: bill.name,
+    });
+    if (txErr) { toast.error(txErr.message); return; }
+    await supabase
+      .from("one_off_bills")
+      .update({ paid: true, paid_at: new Date().toISOString() })
+      .eq("id", bill.id);
+    toast.success(`${bill.name} marked as paid`);
   }
 
   const monthBalance = incomeMonth - outgoingMonth;
@@ -534,6 +570,8 @@ function DashboardPage() {
           allRecurring={allRecurringRules}
           catMap={catMap}
           openingBalanceDate={obDate}
+          oneOffBills={oneOffBills}
+          onToggleBill={handleToggleBill}
         />
       </div>
 
@@ -664,6 +702,8 @@ function WeekAheadSection({
   allRecurring,
   catMap,
   openingBalanceDate,
+  oneOffBills,
+  onToggleBill,
 }: {
   weekOffset: number;
   setWeekOffset: (n: number) => void;
@@ -673,6 +713,8 @@ function WeekAheadSection({
   allRecurring: AllRecurringRule[];
   catMap: Map<string, Cat>;
   openingBalanceDate: string | null;
+  oneOffBills: OneOffBill[];
+  onToggleBill: (bill: OneOffBill) => void;
 }) {
   const { startStr, endStr, label } = getWeekBounds(weekOffset);
   const todayStr = toLocalDate(new Date());
@@ -728,16 +770,44 @@ function WeekAheadSection({
       });
     }
 
+    // One-off bills: show on their due_date within this week
+    oneOffBills.forEach((bill) => {
+      if (bill.due_date >= startStr && bill.due_date <= endStr) {
+        result[bill.due_date]?.push({
+          name: bill.name,
+          amount: Number(bill.amount),
+          kind: "outgoing",
+          isProjected: true,
+          oneOffBill: bill,
+        });
+      }
+    });
+
     return result;
-  }, [startStr, endStr, weekOffset, transactions, allRecurring, catMap, todayStr]);
+  }, [startStr, endStr, weekOffset, transactions, allRecurring, catMap, todayStr, oneOffBills]);
 
   // Opening / closing balances
   const { opening, closing } = useMemo(() => {
     const filtered = openingBalanceDate
       ? allTxs.filter((tx) => tx.occurred_on >= openingBalanceDate)
       : allTxs;
-    return computeWeekBalance(weekOffset, currentBalance, filtered, allRecurring, todayStr);
-  }, [weekOffset, currentBalance, allTxs, allRecurring, openingBalanceDate, todayStr]);
+    const base = computeWeekBalance(weekOffset, currentBalance, filtered, allRecurring, todayStr);
+
+    // Include unpaid one-off bills due in the future portion of this week
+    const futureFrom =
+      weekOffset > 0
+        ? startStr
+        : (() => {
+            const t = new Date(todayStr + "T12:00:00");
+            t.setDate(t.getDate() + 1);
+            return toLocalDate(t);
+          })();
+    const billAdj = oneOffBills
+      .filter((b) => b.due_date >= futureFrom && b.due_date <= endStr)
+      .reduce((s, b) => s - Number(b.amount), 0);
+
+    return { opening: base.opening, closing: base.closing + billAdj };
+  }, [weekOffset, currentBalance, allTxs, allRecurring, openingBalanceDate, todayStr, oneOffBills, startStr, endStr]);
 
   const weekNet = closing - opening;
 
@@ -849,21 +919,27 @@ function WeekAheadSection({
                 <>
                   <ul className="mt-1.5 space-y-1">
                     {items.map((item, i) => (
-                      <li key={i} className="flex items-center justify-between text-xs">
+                      <li key={i} className="flex items-center justify-between gap-2 text-xs">
                         <span
                           className={cn(
-                            "flex items-center gap-1.5",
+                            "flex min-w-0 flex-1 items-center gap-1.5",
                             item.isProjected ? "text-muted-foreground" : "text-foreground",
                           )}
                         >
-                          {item.isProjected && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
-                          )}
-                          {item.name}
+                          {item.oneOffBill ? (
+                            <Checkbox
+                              className="h-3.5 w-3.5 shrink-0"
+                              checked={false}
+                              onCheckedChange={() => onToggleBill(item.oneOffBill!)}
+                            />
+                          ) : item.isProjected ? (
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
+                          ) : null}
+                          <span className="truncate">{item.name}</span>
                         </span>
                         <span
                           className={cn(
-                            "font-medium tabular-nums",
+                            "shrink-0 font-medium tabular-nums",
                             item.kind === "income" ? "text-success" : "text-destructive",
                             item.isProjected && "opacity-70",
                           )}
