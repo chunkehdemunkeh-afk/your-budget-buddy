@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatMoney, formatShortDate } from "@/lib/format";
+import { calculateCurrentBalance, type BalanceTransaction } from "@/lib/balance";
 import { TrendingUp, TrendingDown, Wallet, Target as TargetIcon } from "lucide-react";
 import {
   PieChart,
@@ -64,7 +65,7 @@ function DashboardPage() {
   const [contribTotals, setContribTotals] = useState<Record<string, number>>({});
   const [upcoming, setUpcoming] = useState<Recurring[]>([]);
   const [openingBalance, setOpeningBalance] = useState(0);
-  const [allTimeTotals, setAllTimeTotals] = useState({ income: 0, outgoing: 0 });
+  const [currentBalance, setCurrentBalance] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -98,7 +99,7 @@ function DashboardPage() {
           .order("next_run", { ascending: true })
           .limit(10),
         supabase.from("profiles").select("opening_balance").eq("id", user.id).maybeSingle(),
-        supabase.from("transactions").select("kind, amount"),
+        supabase.from("transactions").select("kind, amount, occurred_on"),
       ]);
 
       if (!mounted) return;
@@ -111,12 +112,15 @@ function DashboardPage() {
       });
       setContribTotals(totals);
       setUpcoming((recRes.data as Recurring[]) ?? []);
-      setOpeningBalance(Number((profileRes.data as { opening_balance: number } | null)?.opening_balance ?? 0));
-      const allTx = (allTxRes.data as { kind: string; amount: number }[]) ?? [];
-      setAllTimeTotals({
-        income: allTx.filter((t) => t.kind === "income").reduce((s, t) => s + Number(t.amount), 0),
-        outgoing: allTx.filter((t) => t.kind !== "income").reduce((s, t) => s + Number(t.amount), 0),
-      });
+      const ob = Number((profileRes.data as { opening_balance: number } | null)?.opening_balance ?? 0);
+      setOpeningBalance(ob);
+      
+      const allTx = (allTxRes.data as BalanceTransaction[]) ?? [];
+      setCurrentBalance(calculateCurrentBalance({
+        openingBalance: ob,
+        openingBalanceDate: null, // Ready for when the user adds it to the schema
+        transactions: allTx,
+      }));
       setLoading(false);
     }
 
@@ -200,7 +204,6 @@ function DashboardPage() {
   }, [transactions, categories]);
 
   const monthBalance = incomeMonth - outgoingMonth;
-  const currentBalance = openingBalance + allTimeTotals.income - allTimeTotals.outgoing;
   const monthLabel = new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const catMap = new Map(categories.map((c) => [c.id, c]));
 

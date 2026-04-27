@@ -24,7 +24,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCategories } from "@/hooks/useCategories";
 import { cn } from "@/lib/utils";
 
-type Frequency = "weekly" | "fortnightly" | "monthly" | "yearly";
+type Frequency = "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly";
 type Kind = "income" | "outgoing";
 
 export interface RecurringRule {
@@ -50,7 +50,7 @@ const schema = z.object({
   name: z.string().trim().min(1).max(120),
   amount: z.number().positive().max(1_000_000),
   kind: z.enum(["income", "outgoing"]),
-  frequency: z.enum(["weekly", "fortnightly", "monthly", "yearly"]),
+  frequency: z.enum(["weekly", "fortnightly", "fourweekly", "monthly", "yearly"]),
   start_date: z.string().min(1),
   category_id: z.string().uuid().nullable(),
 });
@@ -214,6 +214,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
                 <SelectContent>
                   <SelectItem value="weekly">Weekly</SelectItem>
                   <SelectItem value="fortnightly">Fortnightly</SelectItem>
+                  <SelectItem value="fourweekly">Every 4 Weeks</SelectItem>
                   <SelectItem value="monthly">Monthly</SelectItem>
                   <SelectItem value="yearly">Yearly</SelectItem>
                 </SelectContent>
