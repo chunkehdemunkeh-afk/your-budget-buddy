@@ -37,8 +37,8 @@ function SettingsPage() {
   async function saveProfile() {
     if (!user) return;
     const bal = parseFloat(openingBalance);
-    if (isNaN(bal) || bal < 0) {
-      toast.error("Opening balance must be 0 or more");
+    if (isNaN(bal)) {
+      toast.error("Please enter a valid amount");
       return;
     }
     setSaving(true);

@@ -3,7 +3,12 @@
     "allow": [
       "Bash(bun lint *)",
       "Bash(bun run *)",
-      "PowerShell(bun run *)"
+      "PowerShell(bun run *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(bun build *)",
+      "PowerShell(bun build *)",
+      "Bash(~/.bun/bin/bun build *)"
     ]
   }
 }

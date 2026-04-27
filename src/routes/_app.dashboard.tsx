@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatMoney, formatShortDate } from "@/lib/format";
 import { calculateCurrentBalance, type BalanceTransaction } from "@/lib/balance";
-import { TrendingUp, TrendingDown, Wallet, Target as TargetIcon } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, Target as TargetIcon, Trash2 } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -17,6 +17,7 @@ import {
   Tooltip,
 } from "recharts";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({
@@ -143,6 +144,7 @@ function DashboardPage() {
         { event: "*", schema: "public", table: "recurring_rules" },
         () => load(),
       )
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => load())
       .subscribe();
 
     return () => {
@@ -204,6 +206,18 @@ function DashboardPage() {
 
     return { incomeMonth, outgoingMonth, byCategory, monthlyTrend: trend, recent };
   }, [transactions, categories]);
+
+  async function handleDelete(id: string) {
+    const prev = transactions;
+    setTransactions((arr) => arr.filter((t) => t.id !== id));
+    const { error } = await supabase.from("transactions").delete().eq("id", id);
+    if (error) {
+      setTransactions(prev);
+      toast.error(error.message);
+    } else {
+      toast.success("Deleted");
+    }
+  }
 
   const monthBalance = incomeMonth - outgoingMonth;
   const monthLabel = new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
@@ -393,29 +407,34 @@ function DashboardPage() {
             {recent.map((t) => {
               const cat = t.category_id ? catMap.get(t.category_id) : null;
               return (
-                <li key={t.id} className="flex items-center justify-between py-2.5">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="h-9 w-9 rounded-xl"
-                      style={{ background: (cat?.color ?? "#9ca3af") + "33", borderLeft: `3px solid ${cat?.color ?? "#9ca3af"}` }}
-                    />
-                    <div>
-                      <p className="text-sm font-medium">{t.source ?? cat?.name ?? "Entry"}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {formatShortDate(t.occurred_on)} · {cat?.name ?? "Uncategorised"}
-                      </p>
-                    </div>
+                <li key={t.id} className="group flex items-center gap-3 py-2.5">
+                  <span
+                    className="h-9 w-9 shrink-0 rounded-xl"
+                    style={{ background: (cat?.color ?? "#9ca3af") + "33", borderLeft: `3px solid ${cat?.color ?? "#9ca3af"}` }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">{t.source ?? cat?.name ?? "Entry"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatShortDate(t.occurred_on)} · {cat?.name ?? "Uncategorised"}
+                    </p>
                   </div>
                   <span
                     className={
                       t.kind === "income"
-                        ? "font-semibold text-success"
-                        : "font-semibold text-destructive"
+                        ? "shrink-0 font-semibold text-success"
+                        : "shrink-0 font-semibold text-destructive"
                     }
                   >
                     {t.kind === "income" ? "+" : "−"}
                     {formatMoney(t.amount)}
                   </span>
+                  <button
+                    onClick={() => handleDelete(t.id)}
+                    aria-label="Delete"
+                    className="rounded-lg p-1.5 text-muted-foreground transition-all hover:bg-destructive/10 hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </li>
               );
             })}
