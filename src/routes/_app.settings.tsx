@@ -17,18 +17,20 @@ function SettingsPage() {
   const { user, signOut } = useAuth();
   const [displayName, setDisplayName] = useState("");
   const [openingBalance, setOpeningBalance] = useState("");
+  const [openingBalanceDate, setOpeningBalanceDate] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     supabase
       .from("profiles")
-      .select("display_name, opening_balance")
+      .select("display_name, opening_balance, opening_balance_date")
       .eq("id", user.id)
       .maybeSingle()
       .then(({ data }) => {
         setDisplayName(data?.display_name ?? "");
         setOpeningBalance(String(data?.opening_balance ?? 0));
+        setOpeningBalanceDate((data as any)?.opening_balance_date ?? "");
       });
   }, [user]);
 
@@ -42,7 +44,11 @@ function SettingsPage() {
     setSaving(true);
     const { error } = await supabase
       .from("profiles")
-      .update({ display_name: displayName.trim() || null, opening_balance: bal })
+      .update({ 
+        display_name: displayName.trim() || null, 
+        opening_balance: bal,
+        opening_balance_date: openingBalanceDate || null
+      })
       .eq("id", user.id);
     setSaving(false);
     if (error) toast.error(error.message);
@@ -98,6 +104,29 @@ function SettingsPage() {
               className="ml-2 w-full bg-transparent text-lg font-semibold outline-none placeholder:text-muted-foreground/50"
             />
           </div>
+          
+          <div className="mt-4">
+            <Label className="text-xs">As of date</Label>
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={openingBalanceDate}
+                onChange={(e) => setOpeningBalanceDate(e.target.value)}
+                className="h-11 flex-1 rounded-xl"
+              />
+              <Button 
+                variant="outline" 
+                onClick={() => setOpeningBalanceDate(new Date().toISOString().slice(0, 10))}
+                className="h-11 rounded-xl"
+              >
+                Today
+              </Button>
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Transactions before this date will be completely ignored, acting as a fresh start.
+            </p>
+          </div>
+
           <Button
             onClick={saveProfile}
             disabled={saving}

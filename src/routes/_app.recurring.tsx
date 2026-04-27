@@ -99,10 +99,19 @@ function RecurringPage() {
 
   async function handleDelete() {
     if (!confirmDelete) return;
+    
+    // First, detach any existing transactions so they stay intact without violating the foreign key constraint
+    await supabase
+      .from("transactions")
+      .update({ recurring_rule_id: null })
+      .eq("recurring_rule_id", confirmDelete.id);
+
+    // Now safely delete the rule
     const { error } = await supabase
       .from("recurring_rules")
       .delete()
       .eq("id", confirmDelete.id);
+      
     setConfirmDelete(null);
     if (error) toast.error(error.message);
     else toast.success("Deleted");
