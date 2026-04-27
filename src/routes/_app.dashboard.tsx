@@ -741,6 +741,21 @@ function WeekAheadSection({
 
   const weekNet = closing - opening;
 
+  // Running balance after each day (accumulates from opening)
+  const dailyBalances: Record<string, number> = {};
+  {
+    let running = opening;
+    for (const ds of days) {
+      const items = itemsByDay[ds] ?? [];
+      const dayNet = items.reduce(
+        (s, it) => (it.kind === "income" ? s + it.amount : s - it.amount),
+        0,
+      );
+      running += dayNet;
+      dailyBalances[ds] = running;
+    }
+  }
+
   return (
     <section className="rounded-3xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
       {/* Header */}
@@ -831,33 +846,46 @@ function WeekAheadSection({
 
               {/* Items */}
               {items.length > 0 && (
-                <ul className="mt-1.5 space-y-1">
-                  {items.map((item, i) => (
-                    <li key={i} className="flex items-center justify-between text-xs">
-                      <span
-                        className={cn(
-                          "flex items-center gap-1.5",
-                          item.isProjected ? "text-muted-foreground" : "text-foreground",
-                        )}
-                      >
-                        {item.isProjected && (
-                          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
-                        )}
-                        {item.name}
-                      </span>
-                      <span
-                        className={cn(
-                          "font-medium tabular-nums",
-                          item.kind === "income" ? "text-success" : "text-destructive",
-                          item.isProjected && "opacity-70",
-                        )}
-                      >
-                        {item.kind === "income" ? "+" : "−"}
-                        {formatMoney(item.amount)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <ul className="mt-1.5 space-y-1">
+                    {items.map((item, i) => (
+                      <li key={i} className="flex items-center justify-between text-xs">
+                        <span
+                          className={cn(
+                            "flex items-center gap-1.5",
+                            item.isProjected ? "text-muted-foreground" : "text-foreground",
+                          )}
+                        >
+                          {item.isProjected && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                          )}
+                          {item.name}
+                        </span>
+                        <span
+                          className={cn(
+                            "font-medium tabular-nums",
+                            item.kind === "income" ? "text-success" : "text-destructive",
+                            item.isProjected && "opacity-70",
+                          )}
+                        >
+                          {item.kind === "income" ? "+" : "−"}
+                          {formatMoney(item.amount)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-2 border-t border-border/40 pt-1.5 text-right">
+                    <span className="text-xs text-muted-foreground">Balance </span>
+                    <span
+                      className={cn(
+                        "text-xs font-semibold tabular-nums",
+                        dailyBalances[ds] < 0 ? "text-destructive" : "text-foreground",
+                      )}
+                    >
+                      {formatMoney(dailyBalances[ds])}
+                    </span>
+                  </div>
+                </>
               )}
 
               {items.length === 0 && (
