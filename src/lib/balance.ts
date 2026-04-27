@@ -1,3 +1,5 @@
+import { toDateOnly } from "@/lib/recurring";
+
 export interface BalanceTransaction {
   amount: number;
   kind: "income" | "outgoing" | "shopping";
@@ -8,6 +10,7 @@ export interface BalanceOptions {
   openingBalance: number;
   openingBalanceDate?: string | null; // YYYY-MM-DD
   transactions: BalanceTransaction[];
+  asOfDate?: string; // YYYY-MM-DD; defaults to today
 }
 
 /**
@@ -15,13 +18,17 @@ export interface BalanceOptions {
  * Uses the Family Budget formula: 
  * Balance = Opening Balance + Income (since OB) - Outgoings (since OB)
  */
-export function calculateCurrentBalance({ openingBalance, openingBalanceDate, transactions }: BalanceOptions): number {
+export function calculateCurrentBalance({ openingBalance, openingBalanceDate, transactions, asOfDate }: BalanceOptions): number {
+  const today = asOfDate ?? toDateOnly(new Date());
   let balance = openingBalance;
-  
+
   transactions.forEach((tx) => {
-    // If an opening balance date is set, only count transactions ON OR AFTER that date.
-    // Transactions before this date are assumed to be already accounted for in the opening balance.
+    // Only count transactions ON OR AFTER the opening balance date.
     if (openingBalanceDate && tx.occurred_on < openingBalanceDate) {
+      return;
+    }
+    // Exclude future-dated transactions — they haven't happened yet.
+    if (tx.occurred_on > today) {
       return;
     }
     

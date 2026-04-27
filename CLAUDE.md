@@ -13,6 +13,10 @@ bun format       # Prettier (writes in place)
 
 No test suite is configured. There is no `bun test` command.
 
+## Tooling note
+
+`bun` is only available in the user's own terminal — it is NOT on Claude Code's PATH. Claude Code cannot run `bun dev`, `bun lint`, or `bun build` directly. Recommend the user run `! bun dev` themselves. `npx` also fails for lint/typecheck because node_modules are managed by bun.
+
 ## What this app is
 
 **Pursely** — a mobile-first PWA personal budget tracker. Users track income, outgoings, savings goals, and recurring bills. The app name in the codebase/branding is "Pursely"; the repo folder is named `your-budget-buddy`.
@@ -38,6 +42,7 @@ Routes live in `src/routes/` and are file-based (TanStack Router). The `routeTre
   - `/_app/goals` — savings goals + contributions
   - `/_app/recurring` — recurring rules management
   - `/_app/settings` — user profile + currency
+  - `/_app/insights` — financial health score, spending breakdown, food shopping tracker, 6-month trend, savings plan, smart suggestions
 - `/add/income`, `/add/outgoing`, `/add/shopping` — full-screen add forms (not nested under `_app`)
 - `/api/public/hooks/run-recurring` — server-side POST endpoint for cron; fires recurring rules and advances `next_run`
 
@@ -62,9 +67,13 @@ Never import `client.server` in client-facing components.
 
 - `transactions` — `kind: "income" | "outgoing" | "shopping"`, linked to `categories` and optionally `recurring_rules`
 - `recurring_rules` — `frequency: "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly"`, `next_run: date`, `paused: boolean`. The cron endpoint inserts a transaction and advances `next_run` each cycle.
-- `goals` + `goal_contributions` — savings goals with individual deposits
-- `categories` — user-owned, typed `"income" | "outgoing"`, carry a hex `color`
+- `goals` + `goal_contributions` — savings goals with individual deposits; `goal_contributions` has `occurred_on: string` (YYYY-MM-DD) for date filtering
+- `categories` — user-owned, typed `"income" | "outgoing"`, carry a hex `color`; `monthly_budget: number | null` for per-category budget caps
 - `profiles` — per-user `currency`, `display_name`, `opening_balance` (numeric, default 0), `opening_balance_date` (date, nullable — transactions before this date are excluded from balance calculations)
+
+## Domain rules
+
+- **Food shopping** = `kind === "shopping"` transactions OR `kind === "outgoing"` transactions whose category name contains "food shopping" (case-insensitive). Family budget is £1,600/month (household of 6).
 
 ## Key lib utilities
 
@@ -84,6 +93,8 @@ Pages fetch directly from Supabase inside `useEffect` (no React Query). Most pag
 - Amounts are stored as numbers in Postgres; always cast with `Number(t.amount)` after reading from Supabase
 - Date strings: use `toDateOnly(new Date())` (from `src/lib/recurring.ts`) rather than `new Date().toISOString().slice(0, 10)` — the ISO version gives yesterday's date for UK users in BST
 - When passing a `Map` as a prop to a child component that uses it in `useMemo`, memoize it in the parent: `useMemo(() => new Map(...), [deps])` — otherwise the child memo never caches
+- `text-success` is a valid Tailwind utility (defined in styles.css); `text-warning` is NOT — use `text-[var(--color-warning)]` instead
+- Adding a nav tab requires updating both the `tabs` array and `grid-cols-N` on `MobileTabBar` in `src/components/AppNav.tsx`
 
 ## Environment variables
 

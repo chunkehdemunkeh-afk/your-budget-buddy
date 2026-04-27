@@ -13,7 +13,8 @@
       "PowerShell($env:PATH -split \";\" | Where-Object { $_ -match \"bun\" })",
       "PowerShell(Test-Path *)",
       "Bash(export PATH=\"$HOME/.bun/bin:$PATH\")",
-      "PowerShell(Get-ChildItem *)"
+      "PowerShell(Get-ChildItem *)",
+      "Skill(claude-md-management:revise-claude-md)"
     ]
   }
 }
