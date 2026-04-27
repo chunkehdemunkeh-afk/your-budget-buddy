@@ -13,6 +13,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
+type PaymentFrequency = "weekly" | "4-weekly" | "monthly";
+
+const PAYMENT_FREQUENCIES: { value: PaymentFrequency; label: string }[] = [
+  { value: "weekly", label: "Weekly" },
+  { value: "4-weekly", label: "4-Weekly" },
+  { value: "monthly", label: "Monthly" },
+];
+
 interface Props {
   kind: "income" | "outgoing";
   title: string;
@@ -25,6 +33,7 @@ const schema = z.object({
   note: z.string().trim().max(500).optional(),
   occurred_on: z.string().min(1),
   category_id: z.string().uuid().nullable(),
+  payment_frequency: z.string().nullable(),
 });
 
 export function EntryForm({ kind, title, accentClass }: Props) {
@@ -36,6 +45,7 @@ export function EntryForm({ kind, title, accentClass }: Props) {
   const [note, setNote] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [paymentFrequency, setPaymentFrequency] = useState<PaymentFrequency | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   const filteredCats = useMemo(
@@ -53,6 +63,7 @@ export function EntryForm({ kind, title, accentClass }: Props) {
       note: note || undefined,
       occurred_on: date,
       category_id: categoryId,
+      payment_frequency: kind === "income" ? paymentFrequency : null,
     });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? "Please check your entry");
@@ -68,6 +79,7 @@ export function EntryForm({ kind, title, accentClass }: Props) {
       note: parsed.data.note ?? null,
       occurred_on: parsed.data.occurred_on,
       category_id: parsed.data.category_id,
+      payment_frequency: parsed.data.payment_frequency,
     });
     setSubmitting(false);
 
@@ -142,6 +154,34 @@ export function EntryForm({ kind, title, accentClass }: Props) {
             </div>
           )}
         </div>
+
+        {kind === "income" && (
+          <div>
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">
+              Payment frequency (optional)
+            </Label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {PAYMENT_FREQUENCIES.map((f) => {
+                const active = paymentFrequency === f.value;
+                return (
+                  <button
+                    type="button"
+                    key={f.value}
+                    onClick={() => setPaymentFrequency(active ? null : f.value)}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-sm font-medium transition-all",
+                      active
+                        ? "border-transparent bg-success text-success-foreground shadow-[var(--shadow-soft)]"
+                        : "border-border bg-card text-foreground hover:border-foreground/30",
+                    )}
+                  >
+                    {f.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div>

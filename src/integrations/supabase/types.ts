@@ -245,6 +245,7 @@ export type Database = {
           kind: Database["public"]["Enums"]["transaction_kind"]
           note: string | null
           occurred_on: string
+          payment_frequency: string | null
           recurring_rule_id: string | null
           source: string | null
           user_id: string
@@ -257,6 +258,7 @@ export type Database = {
           kind: Database["public"]["Enums"]["transaction_kind"]
           note?: string | null
           occurred_on?: string
+          payment_frequency?: string | null
           recurring_rule_id?: string | null
           source?: string | null
           user_id: string
@@ -269,6 +271,7 @@ export type Database = {
           kind?: Database["public"]["Enums"]["transaction_kind"]
           note?: string | null
           occurred_on?: string
+          payment_frequency?: string | null
           recurring_rule_id?: string | null
           source?: string | null
           user_id?: string
