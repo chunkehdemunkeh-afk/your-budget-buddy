@@ -15,6 +15,7 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
+import { InstallPrompt } from "@/components/InstallPrompt";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({
@@ -198,6 +199,8 @@ function DashboardPage() {
         <p className="text-sm text-muted-foreground">{monthLabel}</p>
         <h1 className="mt-1 text-2xl font-bold tracking-tight md:text-3xl">Hello there 👋</h1>
       </header>
+
+      <InstallPrompt />
 
       {/* Balance card */}
       <div className="mb-6 rounded-3xl bg-[image:var(--gradient-primary)] p-6 text-primary-foreground shadow-[var(--shadow-glow)] md:p-8">
