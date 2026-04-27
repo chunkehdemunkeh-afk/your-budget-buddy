@@ -12,8 +12,13 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AddShoppingRouteImport } from './routes/add.shopping'
+import { Route as AddOutgoingRouteImport } from './routes/add.outgoing'
+import { Route as AddIncomeRouteImport } from './routes/add.income'
 import { Route as AppTransactionsRouteImport } from './routes/_app.transactions'
+import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppRecurringRouteImport } from './routes/_app.recurring'
+import { Route as AppGoalsRouteImport } from './routes/_app.goals'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
 
 const AuthRoute = AuthRouteImport.update({
@@ -30,14 +35,39 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AddShoppingRoute = AddShoppingRouteImport.update({
+  id: '/add/shopping',
+  path: '/add/shopping',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AddOutgoingRoute = AddOutgoingRouteImport.update({
+  id: '/add/outgoing',
+  path: '/add/outgoing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AddIncomeRoute = AddIncomeRouteImport.update({
+  id: '/add/income',
+  path: '/add/income',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppTransactionsRoute = AppTransactionsRouteImport.update({
   id: '/transactions',
   path: '/transactions',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppRecurringRoute = AppRecurringRouteImport.update({
   id: '/recurring',
   path: '/recurring',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppGoalsRoute = AppGoalsRouteImport.update({
+  id: '/goals',
+  path: '/goals',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDashboardRoute = AppDashboardRouteImport.update({
@@ -50,15 +80,25 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AppDashboardRoute
+  '/goals': typeof AppGoalsRoute
   '/recurring': typeof AppRecurringRoute
+  '/settings': typeof AppSettingsRoute
   '/transactions': typeof AppTransactionsRoute
+  '/add/income': typeof AddIncomeRoute
+  '/add/outgoing': typeof AddOutgoingRoute
+  '/add/shopping': typeof AddShoppingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AppDashboardRoute
+  '/goals': typeof AppGoalsRoute
   '/recurring': typeof AppRecurringRoute
+  '/settings': typeof AppSettingsRoute
   '/transactions': typeof AppTransactionsRoute
+  '/add/income': typeof AddIncomeRoute
+  '/add/outgoing': typeof AddOutgoingRoute
+  '/add/shopping': typeof AddShoppingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -66,28 +106,61 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/goals': typeof AppGoalsRoute
   '/_app/recurring': typeof AppRecurringRoute
+  '/_app/settings': typeof AppSettingsRoute
   '/_app/transactions': typeof AppTransactionsRoute
+  '/add/income': typeof AddIncomeRoute
+  '/add/outgoing': typeof AddOutgoingRoute
+  '/add/shopping': typeof AddShoppingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/dashboard' | '/recurring' | '/transactions'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/goals'
+    | '/recurring'
+    | '/settings'
+    | '/transactions'
+    | '/add/income'
+    | '/add/outgoing'
+    | '/add/shopping'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/recurring' | '/transactions'
+  to:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/goals'
+    | '/recurring'
+    | '/settings'
+    | '/transactions'
+    | '/add/income'
+    | '/add/outgoing'
+    | '/add/shopping'
   id:
     | '__root__'
     | '/'
     | '/_app'
     | '/auth'
     | '/_app/dashboard'
+    | '/_app/goals'
     | '/_app/recurring'
+    | '/_app/settings'
     | '/_app/transactions'
+    | '/add/income'
+    | '/add/outgoing'
+    | '/add/shopping'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRoute
+  AddIncomeRoute: typeof AddIncomeRoute
+  AddOutgoingRoute: typeof AddOutgoingRoute
+  AddShoppingRoute: typeof AddShoppingRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -113,6 +186,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/add/shopping': {
+      id: '/add/shopping'
+      path: '/add/shopping'
+      fullPath: '/add/shopping'
+      preLoaderRoute: typeof AddShoppingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/add/outgoing': {
+      id: '/add/outgoing'
+      path: '/add/outgoing'
+      fullPath: '/add/outgoing'
+      preLoaderRoute: typeof AddOutgoingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/add/income': {
+      id: '/add/income'
+      path: '/add/income'
+      fullPath: '/add/income'
+      preLoaderRoute: typeof AddIncomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/transactions': {
       id: '/_app/transactions'
       path: '/transactions'
@@ -120,11 +214,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTransactionsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/recurring': {
       id: '/_app/recurring'
       path: '/recurring'
       fullPath: '/recurring'
       preLoaderRoute: typeof AppRecurringRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/goals': {
+      id: '/_app/goals'
+      path: '/goals'
+      fullPath: '/goals'
+      preLoaderRoute: typeof AppGoalsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/dashboard': {
@@ -139,13 +247,17 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppDashboardRoute: typeof AppDashboardRoute
+  AppGoalsRoute: typeof AppGoalsRoute
   AppRecurringRoute: typeof AppRecurringRoute
+  AppSettingsRoute: typeof AppSettingsRoute
   AppTransactionsRoute: typeof AppTransactionsRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppDashboardRoute: AppDashboardRoute,
+  AppGoalsRoute: AppGoalsRoute,
   AppRecurringRoute: AppRecurringRoute,
+  AppSettingsRoute: AppSettingsRoute,
   AppTransactionsRoute: AppTransactionsRoute,
 }
 
@@ -155,16 +267,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRoute,
+  AddIncomeRoute: AddIncomeRoute,
+  AddOutgoingRoute: AddOutgoingRoute,
+  AddShoppingRoute: AddShoppingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
