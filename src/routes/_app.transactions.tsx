@@ -20,13 +20,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { z } from "zod";
 
-type PaymentFrequency = "weekly" | "4-weekly" | "monthly";
 
-const PAYMENT_FREQUENCIES: { value: PaymentFrequency; label: string }[] = [
-  { value: "weekly", label: "Weekly" },
-  { value: "4-weekly", label: "4-Weekly" },
-  { value: "monthly", label: "Monthly" },
-];
 
 const editSchema = z.object({
   amount: z.number().positive("Amount must be greater than 0").max(1_000_000),
@@ -34,7 +28,6 @@ const editSchema = z.object({
   note: z.string().trim().max(500).optional(),
   occurred_on: z.string().min(1),
   category_id: z.string().uuid().nullable(),
-  payment_frequency: z.string().nullable(),
 });
 
 export const Route = createFileRoute("/_app/transactions")({
@@ -50,7 +43,6 @@ interface Tx {
   source: string | null;
   note: string | null;
   category_id: string | null;
-  payment_frequency: string | null;
 }
 
 type Filter = "all" | "income" | "outgoing" | "shopping";
@@ -70,7 +62,7 @@ function TransactionsPage() {
     async function load() {
       const { data, error } = await supabase
         .from("transactions")
-        .select("id, kind, amount, occurred_on, source, note, category_id, payment_frequency")
+        .select("id, kind, amount, occurred_on, source, note, category_id")
         .order("occurred_on", { ascending: false })
         .order("created_at", { ascending: false })
         .limit(500);
@@ -139,7 +131,6 @@ function TransactionsPage() {
       note: string | null;
       occurred_on: string;
       category_id: string | null;
-      payment_frequency: string | null;
     },
   ) {
     const { error } = await supabase.from("transactions").update(data).eq("id", id);
@@ -250,11 +241,6 @@ function TransactionsPage() {
                             {cat?.name ?? "Uncategorised"}
                             {t.note ? ` · ${t.note}` : ""}
                           </p>
-                          {t.kind === "income" && t.payment_frequency && (
-                            <span className="mt-0.5 inline-block rounded-full border border-success/40 bg-success/10 px-2 py-0.5 text-[10px] font-medium capitalize text-success">
-                              {PAYMENT_FREQUENCIES.find((f) => f.value === t.payment_frequency)?.label ?? t.payment_frequency}
-                            </span>
-                          )}
                         </div>
                         <span
                           className={cn(
@@ -318,7 +304,6 @@ function EditTransactionDialog({
       note: string | null;
       occurred_on: string;
       category_id: string | null;
-      payment_frequency: string | null;
     },
   ) => Promise<boolean>;
 }) {
@@ -327,7 +312,6 @@ function EditTransactionDialog({
   const [note, setNote] = useState("");
   const [date, setDate] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [paymentFrequency, setPaymentFrequency] = useState<PaymentFrequency | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -337,7 +321,6 @@ function EditTransactionDialog({
       setNote(tx.note ?? "");
       setDate(tx.occurred_on);
       setCategoryId(tx.category_id);
-      setPaymentFrequency((tx.payment_frequency as PaymentFrequency | null) ?? null);
     }
   }, [tx]);
 
@@ -355,7 +338,6 @@ function EditTransactionDialog({
       note: note || undefined,
       occurred_on: date,
       category_id: categoryId,
-      payment_frequency: tx.kind === "income" ? paymentFrequency : null,
     });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? "Please check your entry");
@@ -369,7 +351,6 @@ function EditTransactionDialog({
       note: parsed.data.note ?? null,
       occurred_on: parsed.data.occurred_on,
       category_id: parsed.data.category_id,
-      payment_frequency: parsed.data.payment_frequency,
     });
     setSubmitting(false);
     if (ok) onClose();
@@ -400,33 +381,6 @@ function EditTransactionDialog({
             </div>
           </div>
 
-          {tx?.kind === "income" && (
-            <div>
-              <Label className="text-xs uppercase tracking-wide text-muted-foreground">
-                Payment frequency (optional)
-              </Label>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {PAYMENT_FREQUENCIES.map((f) => {
-                  const active = paymentFrequency === f.value;
-                  return (
-                    <button
-                      type="button"
-                      key={f.value}
-                      onClick={() => setPaymentFrequency(active ? null : f.value)}
-                      className={cn(
-                        "rounded-full border px-3 py-1.5 text-sm font-medium transition-all",
-                        active
-                          ? "border-transparent bg-success text-success-foreground shadow-[var(--shadow-soft)]"
-                          : "border-border bg-card text-foreground hover:border-foreground/30",
-                      )}
-                    >
-                      {f.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {filteredCats.length > 0 && (
             <div>
