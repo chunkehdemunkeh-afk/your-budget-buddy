@@ -79,6 +79,7 @@ function DashboardPage() {
       sixMonthsAgo.setDate(1);
       const sixMonthsAgoStr = sixMonthsAgo.toISOString().slice(0, 10);
 
+      const today = new Date().toISOString().slice(0, 10);
       const in7 = new Date();
       in7.setDate(in7.getDate() + 7);
 
@@ -96,6 +97,7 @@ function DashboardPage() {
           .from("recurring_rules")
           .select("id, name, amount, next_run, kind")
           .eq("paused", false)
+          .gte("next_run", today)
           .lte("next_run", in7.toISOString().slice(0, 10))
           .order("next_run", { ascending: true })
           .limit(10),
