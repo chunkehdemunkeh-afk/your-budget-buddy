@@ -1,11 +1,17 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { supabase } from "@/integrations/supabase/client";
+import { AuthProvider } from "@/hooks/useAuth";
+import { EntryForm } from "@/components/EntryForm";
 
 export const Route = createFileRoute("/add/outgoing")({
+  beforeLoad: async () => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) throw redirect({ to: "/auth" });
+  },
   head: () => ({ meta: [{ title: "Add outgoing — Pursely" }] }),
   component: () => (
-    <div className="mx-auto max-w-md px-4 py-8">
-      <h1 className="text-2xl font-bold">Add outgoing</h1>
-      <p className="mt-2 text-sm text-muted-foreground">Coming in the next stage.</p>
-    </div>
+    <AuthProvider>
+      <EntryForm kind="outgoing" title="Add outgoing" accentClass="text-destructive" />
+    </AuthProvider>
   ),
 });
