@@ -43,11 +43,6 @@ export function EntryForm({ kind, title, accentClass }: Props) {
     [categories, kind],
   );
 
-  // Auto-pick first category once loaded
-  if (!categoryId && filteredCats.length > 0) {
-    // Lazy init via state setter inside render is fine since it stabilises
-  }
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!user) return;
