@@ -283,11 +283,13 @@ function DashboardPage() {
             .lte("next_run", in7.toISOString().slice(0, 10))
             .order("next_run", { ascending: true })
             .limit(10),
-          supabase
-            .from("profiles")
-            .select("opening_balance, opening_balance_date")
-            .eq("id", user!.id)
-            .maybeSingle(),
+          householdId
+            ? supabase
+                .from("households")
+                .select("opening_balance, opening_balance_date")
+                .eq("id", householdId)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
           supabase.from("transactions").select("kind, amount, occurred_on"),
           supabase
             .from("recurring_rules")
