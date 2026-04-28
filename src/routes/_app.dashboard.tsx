@@ -363,7 +363,7 @@ function DashboardPage() {
       mounted = false;
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, householdId]);
 
   const { incomeMonth, outgoingMonth, byCategory, monthlyTrend, recent } = useMemo(() => {
     const now = new Date();
