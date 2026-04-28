@@ -61,7 +61,7 @@ function AuthPage() {
   const handleGoogle = async () => {
     setLoading(true);
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin + "/dashboard",
+      redirect_uri: window.location.origin,
     });
     if (result.error) {
       toast.error(result.error.message ?? "Google sign-in failed");
@@ -69,6 +69,8 @@ function AuthPage() {
       return;
     }
     if (result.redirected) return;
+    // Tokens received inline — wait for the session to hydrate, then go.
+    await supabase.auth.getSession();
     navigate({ to: "/dashboard" });
   };
 
