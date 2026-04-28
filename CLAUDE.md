@@ -40,7 +40,7 @@ Routes live in `src/routes/` and are file-based (TanStack Router). The `routeTre
   - `/_app/dashboard` — monthly summary, charts, Week Ahead (navigable weekly view with opening/closing balances), goals preview, upcoming recurring
   - `/_app/transactions` — full transaction list
   - `/_app/goals` — savings goals + contributions
-  - `/_app/recurring` — recurring rules management
+  - `/_app/recurring` — recurring rules management + one-off bills (checklist of one-time bills; ticking as paid creates an outgoing transaction)
   - `/_app/settings` — user profile + currency
   - `/_app/insights` — financial health score, spending breakdown, food shopping tracker, 6-month trend, savings plan, smart suggestions
 - `/add/income`, `/add/outgoing`, `/add/shopping` — full-screen add forms (not nested under `_app`)
@@ -63,6 +63,8 @@ Never import `client.server` in client-facing components.
 
 `src/integrations/supabase/types.ts` is generated — prefer `bunx supabase gen types` after schema changes, but hand-editing the Row/Insert/Update blocks is acceptable when the CLI isn't available.
 
+New tables must be created via the **Supabase SQL editor** (Dashboard → SQL Editor). Claude Code cannot run migrations directly. Always include `enable row level security` + a user-scoped policy when creating new tables.
+
 ## Database schema (key tables)
 
 - `transactions` — `kind: "income" | "outgoing" | "shopping"`, linked to `categories` and optionally `recurring_rules`
@@ -70,14 +72,17 @@ Never import `client.server` in client-facing components.
 - `goals` + `goal_contributions` — savings goals with individual deposits; `goal_contributions` has `occurred_on: string` (YYYY-MM-DD) for date filtering
 - `categories` — user-owned, typed `"income" | "outgoing"`, carry a hex `color`; `monthly_budget: number | null` for per-category budget caps
 - `profiles` — per-user `currency`, `display_name`, `opening_balance` (numeric, default 0), `opening_balance_date` (date, nullable — transactions before this date are excluded from balance calculations)
+- `one_off_bills` — `name text`, `amount numeric` (required), `due_date date` (optional), `paid boolean` (default false), `paid_at timestamptz`. RLS enforced. Unpaid bills with a `due_date` appear in the Week Ahead as projected outgoings; ticking paid creates an outgoing transaction for today.
 
 ## Domain rules
 
 - **Food shopping** = `kind === "shopping"` transactions OR `kind === "outgoing"` transactions whose category name contains "food shopping" (case-insensitive). Family budget is £1,600/month (household of 6).
+- **One-off bill payment** — marking a `one_off_bills` record as paid always inserts a `transactions` row (`kind: "outgoing"`, `occurred_on: today`). Never just flip `paid` without creating the transaction.
+- **Balance excludes future transactions** — `calculateCurrentBalance` ignores transactions with `occurred_on > today`. Don't rely on future-dated transactions to affect the displayed balance.
 
 ## Key lib utilities
 
-- `src/lib/balance.ts` — `calculateCurrentBalance({ openingBalance, openingBalanceDate, transactions })` computes the true running balance, filtering out transactions before `openingBalanceDate`. Used on the dashboard.
+- `src/lib/balance.ts` — `calculateCurrentBalance({ openingBalance, openingBalanceDate, transactions, asOfDate? })` computes the true running balance, filtering out transactions before `openingBalanceDate` AND after `asOfDate` (defaults to today — future-dated transactions are excluded). Used on the dashboard.
 - `src/lib/recurring.ts` — frequency helpers. **Always use `displayNextRun(rule.next_run, rule.frequency)` for display** — the raw `next_run` in the DB can be stale if the cron hasn't fired. `toDateOnly(date)` converts a `Date` to a local `YYYY-MM-DD` string safely (avoids BST/UTC midnight issues).
 - `src/lib/format.ts` — `formatMoney()`, `formatShortDate()`
 
