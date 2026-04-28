@@ -160,6 +160,7 @@ export type Database = {
           currency: string
           display_name: string | null
           id: string
+          opening_balance: number
           opening_balance_date: string | null
           updated_at: string
         }
@@ -168,6 +169,7 @@ export type Database = {
           currency?: string
           display_name?: string | null
           id: string
+          opening_balance?: number
           opening_balance_date?: string | null
           updated_at?: string
         }
@@ -176,6 +178,7 @@ export type Database = {
           currency?: string
           display_name?: string | null
           id?: string
+          opening_balance?: number
           opening_balance_date?: string | null
           updated_at?: string
         }
