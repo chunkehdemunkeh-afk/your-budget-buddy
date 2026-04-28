@@ -6,6 +6,7 @@
       "PowerShell(bun run *)",
       "Bash(git fetch *)",
       "Bash(git pull *)",
+      "Bash(git stash *)",
       "Bash(bun build *)",
       "PowerShell(bun build *)",
       "Bash(~/.bun/bin/bun build *)",
@@ -14,7 +15,14 @@
       "PowerShell(Test-Path *)",
       "Bash(export PATH=\"$HOME/.bun/bin:$PATH\")",
       "PowerShell(Get-ChildItem *)",
-      "Skill(claude-md-management:revise-claude-md)"
+      "Skill(claude-md-management:revise-claude-md)",
+      "Bash(git add *)",
+      "WebSearch",
+      "WebFetch(domain:docs.lovable.dev)",
+      "Bash(git commit -m ' *)",
+      "Bash(git rebase *)",
+      "Bash(git push *)",
+      "Bash(GIT_EDITOR=true git rebase --continue)"
     ]
   }
 }

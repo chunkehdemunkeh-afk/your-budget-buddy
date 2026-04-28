@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
@@ -25,6 +25,16 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const navigate = useNavigate();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
+
+  // If a session lands while we're on this page (e.g. OAuth PKCE exchange
+  // completing after beforeLoad already ran), navigate immediately.
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) navigate({ to: "/dashboard" });
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
@@ -61,7 +71,7 @@ function AuthPage() {
   const handleGoogle = async () => {
     setLoading(true);
     const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+      redirect_uri: `${window.location.origin}/auth`,
     });
     if (result.error) {
       toast.error(result.error.message ?? "Google sign-in failed");
@@ -69,8 +79,7 @@ function AuthPage() {
       return;
     }
     if (result.redirected) return;
-    // Tokens received inline — wait for the session to hydrate, then go.
-    await supabase.auth.getSession();
+    // Tokens received inline (no redirect) — session should already be set.
     navigate({ to: "/dashboard" });
   };
 

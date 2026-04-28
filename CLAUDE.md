@@ -40,8 +40,8 @@ Routes live in `src/routes/` and are file-based (TanStack Router). The `routeTre
   - `/_app/dashboard` — monthly summary, charts, Week Ahead (navigable weekly view with opening/closing balances), goals preview, upcoming recurring
   - `/_app/transactions` — full transaction list
   - `/_app/goals` — savings goals + contributions
-  - `/_app/recurring` — recurring rules management + one-off bills (checklist of one-time bills; ticking as paid creates an outgoing transaction)
-  - `/_app/settings` — user profile + currency
+  - `/_app/recurring` — recurring rules management + one-off bills (tabs: Recurring Rules + One-Off Bills; ticking a one-off as paid creates an outgoing transaction)
+  - `/_app/settings` — profile display name, household name/opening balance, member list + email invites
   - `/_app/insights` — financial health score, spending breakdown, food shopping tracker, 6-month trend, savings plan, smart suggestions
 - `/add/income`, `/add/outgoing`, `/add/shopping` — full-screen add forms (not nested under `_app`)
 - `/api/public/hooks/run-recurring` — server-side POST endpoint for cron; fires recurring rules and advances `next_run`
@@ -67,12 +67,15 @@ New tables must be created via the **Supabase SQL editor** (Dashboard → SQL Ed
 
 ## Database schema (key tables)
 
-- `transactions` — `kind: "income" | "outgoing" | "shopping"`, linked to `categories` and optionally `recurring_rules`
-- `recurring_rules` — `frequency: "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly"`, `next_run: date`, `paused: boolean`. The cron endpoint inserts a transaction and advances `next_run` each cycle.
-- `goals` + `goal_contributions` — savings goals with individual deposits; `goal_contributions` has `occurred_on: string` (YYYY-MM-DD) for date filtering
-- `categories` — user-owned, typed `"income" | "outgoing"`, carry a hex `color`; `monthly_budget: number | null` for per-category budget caps
-- `profiles` — per-user `currency`, `display_name`, `opening_balance` (numeric, default 0), `opening_balance_date` (date, nullable — transactions before this date are excluded from balance calculations)
-- `one_off_bills` — `name text`, `amount numeric` (required), `due_date date` (optional), `paid boolean` (default false), `paid_at timestamptz`. RLS enforced. Unpaid bills with a `due_date` appear in the Week Ahead as projected outgoings; ticking paid creates an outgoing transaction for today.
+- `households` — `id`, `name`, `created_by`, `opening_balance` (numeric), `opening_balance_date` (date, nullable), `currency`. Opening balance and currency live here, **not** on `profiles`.
+- `household_members` — `household_id`, `user_id`, `joined_at`. Join table; use `is_household_member()` security-definer function in RLS.
+- `household_invites` — `id`, `household_id`, `email`, `invited_by`, `created_at`, `accepted_at`. Pending invites have `accepted_at IS NULL`; new signups auto-join if a matching invite exists.
+- `transactions` — `kind: "income" | "outgoing" | "shopping"`, `household_id` (NOT NULL), linked to `categories` and optionally `recurring_rules`
+- `recurring_rules` — `frequency: "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly"`, `next_run: date`, `paused: boolean`, `household_id` (NOT NULL). The cron endpoint inserts a transaction and advances `next_run` each cycle.
+- `goals` + `goal_contributions` — savings goals with individual deposits; `goal_contributions` has `occurred_on: string` (YYYY-MM-DD) for date filtering; both have `household_id` (NOT NULL)
+- `categories` — `"income" | "outgoing"`, hex `color`; `monthly_budget: number | null`; `household_id` (NOT NULL)
+- `one_off_bills` — `name text`, `amount numeric` (required), `due_date date` (optional), `paid boolean` (default false), `paid_at timestamptz`, `household_id` (NOT NULL). Unpaid bills with a `due_date` appear in the Week Ahead as projected outgoings; ticking paid creates an outgoing transaction for today.
+- `profiles` — per-user `display_name` only. Currency/opening balance **moved to `households`**.
 
 ## Domain rules
 
@@ -85,6 +88,16 @@ New tables must be created via the **Supabase SQL editor** (Dashboard → SQL Ed
 - `src/lib/balance.ts` — `calculateCurrentBalance({ openingBalance, openingBalanceDate, transactions, asOfDate? })` computes the true running balance, filtering out transactions before `openingBalanceDate` AND after `asOfDate` (defaults to today — future-dated transactions are excluded). Used on the dashboard.
 - `src/lib/recurring.ts` — frequency helpers. **Always use `displayNextRun(rule.next_run, rule.frequency)` for display** — the raw `next_run` in the DB can be stale if the cron hasn't fired. `toDateOnly(date)` converts a `Date` to a local `YYYY-MM-DD` string safely (avoids BST/UTC midnight issues).
 - `src/lib/format.ts` — `formatMoney()`, `formatShortDate()`
+- `src/hooks/useCategories.ts` — `useCategories()` hook; returns `{ categories, loading }` with a Realtime subscription. Use this instead of fetching categories manually inside pages.
+
+## Multi-user households
+
+All data tables (`transactions`, `recurring_rules`, `goals`, `goal_contributions`, `categories`, `shopping_items`, `one_off_bills`) have a `household_id` NOT NULL column. RLS is household-scoped via the `is_household_member(household_id, auth.uid())` security-definer function.
+
+- `useAuth()` now exposes `householdId: string | null` (the user's household UUID). **All data queries must filter by `householdId`, not `user.id`.**
+- New inserts must include `household_id: householdId`.
+- Opening balance and currency are on the `households` row, not `profiles`. Read/write them via `supabase.from("households").select(...).eq("id", householdId)`.
+- New signups auto-join an existing household if a matching pending invite exists (handled by `handle_new_user()` DB trigger).
 
 ## Data fetching pattern
 
