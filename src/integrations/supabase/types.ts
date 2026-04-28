@@ -121,6 +121,39 @@ export type Database = {
         }
         Relationships: []
       }
+      one_off_bills: {
+        Row: {
+          amount: number | null
+          created_at: string
+          due_date: string | null
+          id: string
+          name: string
+          paid: boolean
+          paid_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          name: string
+          paid?: boolean
+          paid_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          name?: string
+          paid?: boolean
+          paid_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -128,6 +161,7 @@ export type Database = {
           display_name: string | null
           id: string
           opening_balance: number
+          opening_balance_date: string | null
           updated_at: string
         }
         Insert: {
@@ -136,6 +170,7 @@ export type Database = {
           display_name?: string | null
           id: string
           opening_balance?: number
+          opening_balance_date?: string | null
           updated_at?: string
         }
         Update: {
@@ -144,6 +179,7 @@ export type Database = {
           display_name?: string | null
           id?: string
           opening_balance?: number
+          opening_balance_date?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -248,7 +284,6 @@ export type Database = {
           kind: Database["public"]["Enums"]["transaction_kind"]
           note: string | null
           occurred_on: string
-          payment_frequency: string | null
           recurring_rule_id: string | null
           source: string | null
           user_id: string
@@ -261,7 +296,6 @@ export type Database = {
           kind: Database["public"]["Enums"]["transaction_kind"]
           note?: string | null
           occurred_on?: string
-          payment_frequency?: string | null
           recurring_rule_id?: string | null
           source?: string | null
           user_id: string
@@ -274,7 +308,6 @@ export type Database = {
           kind?: Database["public"]["Enums"]["transaction_kind"]
           note?: string | null
           occurred_on?: string
-          payment_frequency?: string | null
           recurring_rule_id?: string | null
           source?: string | null
           user_id?: string
@@ -305,7 +338,12 @@ export type Database = {
     }
     Enums: {
       category_type: "income" | "outgoing"
-      recurrence_frequency: "weekly" | "fortnightly" | "monthly" | "yearly"
+      recurrence_frequency:
+        | "weekly"
+        | "fortnightly"
+        | "monthly"
+        | "yearly"
+        | "fourweekly"
       transaction_kind: "income" | "outgoing" | "shopping"
     }
     CompositeTypes: {
@@ -435,7 +473,13 @@ export const Constants = {
   public: {
     Enums: {
       category_type: ["income", "outgoing"],
-      recurrence_frequency: ["weekly", "fortnightly", "monthly", "yearly"],
+      recurrence_frequency: [
+        "weekly",
+        "fortnightly",
+        "monthly",
+        "yearly",
+        "fourweekly",
+      ],
       transaction_kind: ["income", "outgoing", "shopping"],
     },
   },
