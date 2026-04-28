@@ -286,7 +286,7 @@ function DashboardPage() {
           supabase
             .from("profiles")
             .select("opening_balance, opening_balance_date")
-            .eq("id", user.id)
+            .eq("id", user!.id)
             .maybeSingle(),
           supabase.from("transactions").select("kind, amount, occurred_on"),
           supabase
