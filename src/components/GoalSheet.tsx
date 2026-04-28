@@ -50,7 +50,7 @@ interface Props {
 }
 
 export function GoalSheet({ open, onOpenChange, goal }: Props) {
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [date, setDate] = useState<string>("");
@@ -101,8 +101,10 @@ export function GoalSheet({ open, onOpenChange, goal }: Props) {
       if (error) return toast.error(error.message);
       toast.success("Goal updated");
     } else {
+      if (!householdId) { setSubmitting(false); toast.error("Loading household…"); return; }
       const { error } = await supabase.from("goals").insert({
         user_id: user.id,
+        household_id: householdId,
         name: parsed.data.name,
         target_amount: parsed.data.target_amount,
         target_date: parsed.data.target_date,

@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS opening_balance numeric NOT NULL DEFAULT 0;

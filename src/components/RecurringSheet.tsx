@@ -56,7 +56,7 @@ const schema = z.object({
 });
 
 export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoing" }: Props) {
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const { categories } = useCategories();
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
@@ -124,8 +124,10 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
       }
       toast.success("Updated");
     } else {
+      if (!householdId) { setSubmitting(false); toast.error("Loading household…"); return; }
       const { error } = await supabase.from("recurring_rules").insert({
         user_id: user.id,
+        household_id: householdId,
         name: parsed.data.name,
         amount: parsed.data.amount,
         kind: parsed.data.kind,

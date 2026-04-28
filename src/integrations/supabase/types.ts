@@ -18,6 +18,7 @@ export type Database = {
         Row: {
           color: string
           created_at: string
+          household_id: string
           icon: string
           id: string
           is_default: boolean
@@ -29,6 +30,7 @@ export type Database = {
         Insert: {
           color?: string
           created_at?: string
+          household_id: string
           icon?: string
           id?: string
           is_default?: boolean
@@ -40,6 +42,7 @@ export type Database = {
         Update: {
           color?: string
           created_at?: string
+          household_id?: string
           icon?: string
           id?: string
           is_default?: boolean
@@ -48,13 +51,22 @@ export type Database = {
           type?: Database["public"]["Enums"]["category_type"]
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "categories_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       goal_contributions: {
         Row: {
           amount: number
           created_at: string
           goal_id: string
+          household_id: string
           id: string
           note: string | null
           occurred_on: string
@@ -64,6 +76,7 @@ export type Database = {
           amount: number
           created_at?: string
           goal_id: string
+          household_id: string
           id?: string
           note?: string | null
           occurred_on?: string
@@ -73,6 +86,7 @@ export type Database = {
           amount?: number
           created_at?: string
           goal_id?: string
+          household_id?: string
           id?: string
           note?: string | null
           occurred_on?: string
@@ -86,12 +100,20 @@ export type Database = {
             referencedRelation: "goals"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "goal_contributions_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
         ]
       }
       goals: {
         Row: {
           color: string
           created_at: string
+          household_id: string
           icon: string
           id: string
           name: string
@@ -102,6 +124,7 @@ export type Database = {
         Insert: {
           color?: string
           created_at?: string
+          household_id: string
           icon?: string
           id?: string
           name: string
@@ -112,6 +135,7 @@ export type Database = {
         Update: {
           color?: string
           created_at?: string
+          household_id?: string
           icon?: string
           id?: string
           name?: string
@@ -119,7 +143,150 @@ export type Database = {
           target_date?: string | null
           user_id?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: "goals_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      household_invites: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          email: string
+          household_id: string
+          id: string
+          invited_by: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          email: string
+          household_id: string
+          id?: string
+          invited_by: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          email?: string
+          household_id?: string
+          id?: string
+          invited_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "household_invites_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      household_members: {
+        Row: {
+          household_id: string
+          joined_at: string
+          user_id: string
+        }
+        Insert: {
+          household_id: string
+          joined_at?: string
+          user_id: string
+        }
+        Update: {
+          household_id?: string
+          joined_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "household_members_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      households: {
+        Row: {
+          created_at: string
+          created_by: string
+          currency: string
+          id: string
+          name: string
+          opening_balance: number
+          opening_balance_date: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          currency?: string
+          id?: string
+          name?: string
+          opening_balance?: number
+          opening_balance_date?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          currency?: string
+          id?: string
+          name?: string
+          opening_balance?: number
+          opening_balance_date?: string | null
+        }
         Relationships: []
+      }
+      one_off_bills: {
+        Row: {
+          amount: number | null
+          created_at: string
+          due_date: string | null
+          household_id: string
+          id: string
+          name: string
+          paid: boolean
+          paid_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          due_date?: string | null
+          household_id: string
+          id?: string
+          name: string
+          paid?: boolean
+          paid_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          due_date?: string | null
+          household_id?: string
+          id?: string
+          name?: string
+          paid?: boolean
+          paid_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "one_off_bills_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -128,6 +295,7 @@ export type Database = {
           display_name: string | null
           id: string
           opening_balance: number
+          opening_balance_date: string | null
           updated_at: string
         }
         Insert: {
@@ -136,6 +304,7 @@ export type Database = {
           display_name?: string | null
           id: string
           opening_balance?: number
+          opening_balance_date?: string | null
           updated_at?: string
         }
         Update: {
@@ -144,6 +313,7 @@ export type Database = {
           display_name?: string | null
           id?: string
           opening_balance?: number
+          opening_balance_date?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -155,6 +325,7 @@ export type Database = {
           created_at: string
           day_of_cycle: number | null
           frequency: Database["public"]["Enums"]["recurrence_frequency"]
+          household_id: string
           id: string
           kind: Database["public"]["Enums"]["transaction_kind"]
           name: string
@@ -169,6 +340,7 @@ export type Database = {
           created_at?: string
           day_of_cycle?: number | null
           frequency: Database["public"]["Enums"]["recurrence_frequency"]
+          household_id: string
           id?: string
           kind: Database["public"]["Enums"]["transaction_kind"]
           name: string
@@ -183,6 +355,7 @@ export type Database = {
           created_at?: string
           day_of_cycle?: number | null
           frequency?: Database["public"]["Enums"]["recurrence_frequency"]
+          household_id?: string
           id?: string
           kind?: Database["public"]["Enums"]["transaction_kind"]
           name?: string
@@ -199,12 +372,20 @@ export type Database = {
             referencedRelation: "categories"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "recurring_rules_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
         ]
       }
       shopping_items: {
         Row: {
           amount: number
           created_at: string
+          household_id: string
           id: string
           name: string
           quantity: number
@@ -214,6 +395,7 @@ export type Database = {
         Insert: {
           amount: number
           created_at?: string
+          household_id: string
           id?: string
           name: string
           quantity?: number
@@ -223,6 +405,7 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          household_id?: string
           id?: string
           name?: string
           quantity?: number
@@ -230,6 +413,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "shopping_items_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "shopping_items_transaction_id_fkey"
             columns: ["transaction_id"]
@@ -244,11 +434,11 @@ export type Database = {
           amount: number
           category_id: string | null
           created_at: string
+          household_id: string
           id: string
           kind: Database["public"]["Enums"]["transaction_kind"]
           note: string | null
           occurred_on: string
-          payment_frequency: string | null
           recurring_rule_id: string | null
           source: string | null
           user_id: string
@@ -257,11 +447,11 @@ export type Database = {
           amount: number
           category_id?: string | null
           created_at?: string
+          household_id: string
           id?: string
           kind: Database["public"]["Enums"]["transaction_kind"]
           note?: string | null
           occurred_on?: string
-          payment_frequency?: string | null
           recurring_rule_id?: string | null
           source?: string | null
           user_id: string
@@ -270,11 +460,11 @@ export type Database = {
           amount?: number
           category_id?: string | null
           created_at?: string
+          household_id?: string
           id?: string
           kind?: Database["public"]["Enums"]["transaction_kind"]
           note?: string | null
           occurred_on?: string
-          payment_frequency?: string | null
           recurring_rule_id?: string | null
           source?: string | null
           user_id?: string
@@ -285,6 +475,13 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
             referencedColumns: ["id"]
           },
           {
@@ -301,11 +498,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_household_member: {
+        Args: { _household_id: string; _user_id: string }
+        Returns: boolean
+      }
+      user_household_ids: { Args: { _user_id: string }; Returns: string[] }
     }
     Enums: {
       category_type: "income" | "outgoing"
-      recurrence_frequency: "weekly" | "fortnightly" | "monthly" | "yearly"
+      recurrence_frequency:
+        | "weekly"
+        | "fortnightly"
+        | "monthly"
+        | "yearly"
+        | "fourweekly"
       transaction_kind: "income" | "outgoing" | "shopping"
     }
     CompositeTypes: {
@@ -435,7 +641,13 @@ export const Constants = {
   public: {
     Enums: {
       category_type: ["income", "outgoing"],
-      recurrence_frequency: ["weekly", "fortnightly", "monthly", "yearly"],
+      recurrence_frequency: [
+        "weekly",
+        "fortnightly",
+        "monthly",
+        "yearly",
+        "fourweekly",
+      ],
       transaction_kind: ["income", "outgoing", "shopping"],
     },
   },
