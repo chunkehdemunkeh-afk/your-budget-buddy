@@ -236,7 +236,7 @@ function computeWeekBalance(
 // ─── Dashboard ──────────────────────────────────────────────────────────────────
 
 function DashboardPage() {
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const [transactions, setTransactions] = useState<Tx[]>([]);
   const [categories, setCategories] = useState<Cat[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -283,11 +283,13 @@ function DashboardPage() {
             .lte("next_run", in7.toISOString().slice(0, 10))
             .order("next_run", { ascending: true })
             .limit(10),
-          supabase
-            .from("profiles")
-            .select("opening_balance, opening_balance_date")
-            .eq("id", user!.id)
-            .maybeSingle(),
+          householdId
+            ? supabase
+                .from("households")
+                .select("opening_balance, opening_balance_date")
+                .eq("id", householdId)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null }),
           supabase.from("transactions").select("kind, amount, occurred_on"),
           supabase
             .from("recurring_rules")
@@ -361,7 +363,7 @@ function DashboardPage() {
       mounted = false;
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user, householdId]);
 
   const { incomeMonth, outgoingMonth, byCategory, monthlyTrend, recent } = useMemo(() => {
     const now = new Date();
@@ -428,10 +430,11 @@ function DashboardPage() {
   }
 
   async function handleToggleBill(bill: OneOffBill) {
-    if (!user) return;
+    if (!user || !householdId) return;
     const today = toLocalDate(new Date());
     const { error: txErr } = await supabase.from("transactions").insert({
       user_id: user.id,
+      household_id: householdId,
       kind: "outgoing",
       amount: bill.amount,
       occurred_on: today,

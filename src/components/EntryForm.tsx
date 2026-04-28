@@ -31,7 +31,7 @@ const schema = z.object({
 
 export function EntryForm({ kind, title, accentClass }: Props) {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const { categories, loading: catLoading } = useCategories();
   const [amount, setAmount] = useState("");
   const [source, setSource] = useState("");
@@ -61,9 +61,11 @@ export function EntryForm({ kind, title, accentClass }: Props) {
       return;
     }
 
+    if (!householdId) { toast.error("Loading household…"); return; }
     setSubmitting(true);
     const { error } = await supabase.from("transactions").insert({
       user_id: user.id,
+      household_id: householdId,
       kind,
       amount: parsed.data.amount,
       source: parsed.data.source ?? null,

@@ -26,6 +26,7 @@ function toDateOnly(d: Date): string {
 interface DueRule {
   id: string;
   user_id: string;
+  household_id: string;
   name: string;
   amount: number;
   kind: "income" | "outgoing" | "shopping";
@@ -45,7 +46,7 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
 
         const { data: due, error } = await supabaseAdmin
           .from("recurring_rules")
-          .select("id, user_id, name, amount, kind, frequency, next_run, category_id")
+          .select("id, user_id, household_id, name, amount, kind, frequency, next_run, category_id")
           .eq("paused", false)
           .lte("next_run", today)
           .limit(500);
@@ -70,6 +71,7 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
           if (!existing) {
             const { error: txErr } = await supabaseAdmin.from("transactions").insert({
               user_id: rule.user_id,
+              household_id: rule.household_id,
               kind: rule.kind,
               amount: rule.amount,
               occurred_on: today, // Always today — never back-date
