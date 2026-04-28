@@ -428,10 +428,11 @@ function DashboardPage() {
   }
 
   async function handleToggleBill(bill: OneOffBill) {
-    if (!user) return;
+    if (!user || !householdId) return;
     const today = toLocalDate(new Date());
     const { error: txErr } = await supabase.from("transactions").insert({
       user_id: user.id,
+      household_id: householdId,
       kind: "outgoing",
       amount: bill.amount,
       occurred_on: today,

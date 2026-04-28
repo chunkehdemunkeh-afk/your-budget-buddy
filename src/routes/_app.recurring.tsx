@@ -126,10 +126,11 @@ function RecurringPage() {
   }
 
   async function runNow(rule: RecurringRule) {
-    if (!user) return;
+    if (!user || !householdId) return;
     const today = toDateOnly(new Date());
     const { error: txErr } = await supabase.from("transactions").insert({
       user_id: user.id,
+      household_id: householdId,
       kind: rule.kind,
       amount: rule.amount,
       occurred_on: today,
@@ -167,12 +168,13 @@ function RecurringPage() {
   }
 
   async function toggleBillPaid(bill: OneOffBill) {
-    if (!user) return;
+    if (!user || !householdId) return;
     const paid = !bill.paid;
     if (paid) {
       const today = toDateOnly(new Date());
       const { error: txErr } = await supabase.from("transactions").insert({
         user_id: user.id,
+        household_id: householdId,
         kind: "outgoing",
         amount: bill.amount,
         occurred_on: today,
@@ -189,12 +191,13 @@ function RecurringPage() {
   }
 
   async function addBill() {
-    if (!user || !newBillName.trim() || !newBillAmount) return;
+    if (!user || !householdId || !newBillName.trim() || !newBillAmount) return;
     setAddingBill(true);
     const amount = Number(newBillAmount);
     const due_date = newBillDue || null;
     const { error } = await supabase.from("one_off_bills").insert({
       user_id: user.id,
+      household_id: householdId,
       name: newBillName.trim(),
       amount,
       due_date,

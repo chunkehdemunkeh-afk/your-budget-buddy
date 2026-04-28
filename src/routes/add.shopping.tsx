@@ -120,9 +120,11 @@ function QuickShop() {
       toast.error(parsed.error.issues[0]?.message ?? "Please check your entry");
       return;
     }
+    if (!householdId) { toast.error("Loading household…"); return; }
     setSubmitting(true);
     const { error } = await supabase.from("transactions").insert({
       user_id: user.id,
+      household_id: householdId,
       kind: "shopping",
       amount: parsed.data.total,
       source: parsed.data.source ?? null,
@@ -253,11 +255,13 @@ function ItemisedShop() {
       return;
     }
 
+    if (!householdId) { toast.error("Loading household…"); return; }
     setSubmitting(true);
     const { data: txData, error: txErr } = await supabase
       .from("transactions")
       .insert({
         user_id: user.id,
+        household_id: householdId,
         kind: "shopping",
         amount: total,
         source: source || null,
@@ -275,6 +279,7 @@ function ItemisedShop() {
 
     const rows = cleaned.map((i) => ({
       user_id: user.id,
+      household_id: householdId,
       transaction_id: txData.id,
       name: i.name,
       amount: i.amount,

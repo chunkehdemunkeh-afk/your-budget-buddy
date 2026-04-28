@@ -92,9 +92,11 @@ export function ContributionSheet({ open, onOpenChange, goal }: Props) {
       toast.error(parsed.error.issues[0]?.message ?? "Check entry");
       return;
     }
+    if (!householdId) { toast.error("Loading household…"); return; }
     setSubmitting(true);
     const { error } = await supabase.from("goal_contributions").insert({
       user_id: user.id,
+      household_id: householdId,
       goal_id: goal.id,
       amount: parsed.data.amount,
       occurred_on: parsed.data.occurred_on,

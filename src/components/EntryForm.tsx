@@ -61,9 +61,11 @@ export function EntryForm({ kind, title, accentClass }: Props) {
       return;
     }
 
+    if (!householdId) { toast.error("Loading household…"); return; }
     setSubmitting(true);
     const { error } = await supabase.from("transactions").insert({
       user_id: user.id,
+      household_id: householdId,
       kind,
       amount: parsed.data.amount,
       source: parsed.data.source ?? null,
