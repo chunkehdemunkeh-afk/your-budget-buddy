@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { addDays, addMonths, addYears } from "date-fns";
 
-type Frequency = "weekly" | "fortnightly" | "monthly" | "yearly";
+type Frequency = "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly";
 
 function nextRunFrom(date: Date, frequency: Frequency): Date {
   switch (frequency) {
@@ -10,6 +10,8 @@ function nextRunFrom(date: Date, frequency: Frequency): Date {
       return addDays(date, 7);
     case "fortnightly":
       return addDays(date, 14);
+    case "fourweekly":
+      return addDays(date, 28);
     case "monthly":
       return addMonths(date, 1);
     case "yearly":
@@ -41,60 +43,63 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
         let skipped = 0;
         const errors: string[] = [];
 
-        // Loop until no more due rules (some rules may catch up multiple cycles)
-        for (let pass = 0; pass < 10; pass++) {
-          const { data: due, error } = await supabaseAdmin
-            .from("recurring_rules")
-            .select("id, user_id, name, amount, kind, frequency, next_run, category_id")
-            .eq("paused", false)
-            .lte("next_run", today)
-            .limit(500);
+        const { data: due, error } = await supabaseAdmin
+          .from("recurring_rules")
+          .select("id, user_id, name, amount, kind, frequency, next_run, category_id")
+          .eq("paused", false)
+          .lte("next_run", today)
+          .limit(500);
 
-          if (error) {
-            return new Response(
-              JSON.stringify({ ok: false, error: error.message }),
-              { status: 500, headers: { "Content-Type": "application/json" } },
-            );
-          }
-          if (!due || due.length === 0) break;
+        if (error) {
+          return new Response(
+            JSON.stringify({ ok: false, error: error.message }),
+            { status: 500, headers: { "Content-Type": "application/json" } },
+          );
+        }
 
-          for (const rule of due as DueRule[]) {
-            // Idempotency: skip if a transaction already exists for this rule on this date
-            const { data: existing } = await supabaseAdmin
-              .from("transactions")
-              .select("id")
-              .eq("recurring_rule_id", rule.id)
-              .eq("occurred_on", rule.next_run)
-              .limit(1)
-              .maybeSingle();
+        for (const rule of (due as DueRule[] | null) ?? []) {
+          // Idempotency: only one transaction per rule per day.
+          const { data: existing } = await supabaseAdmin
+            .from("transactions")
+            .select("id")
+            .eq("recurring_rule_id", rule.id)
+            .eq("occurred_on", today)
+            .limit(1)
+            .maybeSingle();
 
-            if (!existing) {
-              const { error: txErr } = await supabaseAdmin.from("transactions").insert({
-                user_id: rule.user_id,
-                kind: rule.kind,
-                amount: rule.amount,
-                occurred_on: rule.next_run,
-                source: rule.name,
-                category_id: rule.category_id,
-                recurring_rule_id: rule.id,
-              });
-              if (txErr) {
-                errors.push(`${rule.id}: ${txErr.message}`);
-                // Still advance next_run so we don't retry every cron tick
-              } else {
-                processed++;
-              }
+          if (!existing) {
+            const { error: txErr } = await supabaseAdmin.from("transactions").insert({
+              user_id: rule.user_id,
+              kind: rule.kind,
+              amount: rule.amount,
+              occurred_on: today, // Always today — never back-date
+              source: rule.name,
+              category_id: rule.category_id,
+              recurring_rule_id: rule.id,
+            });
+            if (txErr) {
+              errors.push(`${rule.id}: ${txErr.message}`);
             } else {
-              skipped++;
+              processed++;
             }
-
-            const next = toDateOnly(nextRunFrom(new Date(rule.next_run), rule.frequency));
-            const { error: upErr } = await supabaseAdmin
-              .from("recurring_rules")
-              .update({ next_run: next })
-              .eq("id", rule.id);
-            if (upErr) errors.push(`update ${rule.id}: ${upErr.message}`);
+          } else {
+            skipped++;
           }
+
+          // Advance next_run forward until it lands on a future date.
+          // This prevents pile-ups when the cron has missed cycles, but only
+          // posts ONE catch-up transaction (dated today) regardless.
+          let next = nextRunFrom(new Date(rule.next_run), rule.frequency);
+          const todayDate = new Date(today);
+          while (next <= todayDate) {
+            next = nextRunFrom(next, rule.frequency);
+          }
+          const nextStr = toDateOnly(next);
+          const { error: upErr } = await supabaseAdmin
+            .from("recurring_rules")
+            .update({ next_run: nextStr })
+            .eq("id", rule.id);
+          if (upErr) errors.push(`update ${rule.id}: ${upErr.message}`);
         }
 
         return new Response(
