@@ -50,7 +50,7 @@ interface Props {
 }
 
 export function GoalSheet({ open, onOpenChange, goal }: Props) {
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [date, setDate] = useState<string>("");

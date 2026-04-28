@@ -236,7 +236,7 @@ function computeWeekBalance(
 // ─── Dashboard ──────────────────────────────────────────────────────────────────
 
 function DashboardPage() {
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const [transactions, setTransactions] = useState<Tx[]>([]);
   const [categories, setCategories] = useState<Cat[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);

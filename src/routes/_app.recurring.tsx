@@ -40,7 +40,7 @@ interface OneOffBill {
 }
 
 function RecurringPage() {
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const { categories } = useCategories();
   const [rules, setRules] = useState<RecurringRule[]>([]);
   const [loading, setLoading] = useState(true);

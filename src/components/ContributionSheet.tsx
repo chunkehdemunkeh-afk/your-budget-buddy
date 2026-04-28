@@ -37,7 +37,7 @@ const schema = z.object({
 });
 
 export function ContributionSheet({ open, onOpenChange, goal }: Props) {
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState("");

@@ -100,7 +100,7 @@ function CategoryPills({
 
 function QuickShop() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const [total, setTotal] = useState("");
   const [source, setSource] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -201,7 +201,7 @@ const itemSchema = z.object({
 
 function ItemisedShop() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const [source, setSource] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [categoryId, setCategoryId] = useState<string | null>(null);

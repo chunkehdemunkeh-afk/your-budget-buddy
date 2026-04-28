@@ -31,7 +31,7 @@ const schema = z.object({
 
 export function EntryForm({ kind, title, accentClass }: Props) {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const { categories, loading: catLoading } = useCategories();
   const [amount, setAmount] = useState("");
   const [source, setSource] = useState("");

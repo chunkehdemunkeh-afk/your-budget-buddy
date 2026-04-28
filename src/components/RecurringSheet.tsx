@@ -56,7 +56,7 @@ const schema = z.object({
 });
 
 export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoing" }: Props) {
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const { categories } = useCategories();
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
