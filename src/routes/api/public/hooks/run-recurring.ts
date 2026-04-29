@@ -59,30 +59,37 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
         }
 
         for (const rule of (due as DueRule[] | null) ?? []) {
-          // Idempotency: only one transaction per rule per day.
-          const { data: existing } = await supabaseAdmin
-            .from("transactions")
-            .select("id")
-            .eq("recurring_rule_id", rule.id)
-            .eq("occurred_on", today)
-            .limit(1)
-            .maybeSingle();
+          // Only post a transaction when the rule is due TODAY exactly.
+          // If next_run is in the past (stale / missed cycles / bad start_date),
+          // just roll next_run forward without inserting anything — never back-fire.
+          if (rule.next_run === today) {
+            // Idempotency: only one transaction per rule per day.
+            const { data: existing } = await supabaseAdmin
+              .from("transactions")
+              .select("id")
+              .eq("recurring_rule_id", rule.id)
+              .eq("occurred_on", today)
+              .limit(1)
+              .maybeSingle();
 
-          if (!existing) {
-            const { error: txErr } = await supabaseAdmin.from("transactions").insert({
-              user_id: rule.user_id,
-              household_id: rule.household_id,
-              kind: rule.kind,
-              amount: rule.amount,
-              occurred_on: today, // Always today — never back-date
-              source: rule.name,
-              category_id: rule.category_id,
-              recurring_rule_id: rule.id,
-            });
-            if (txErr) {
-              errors.push(`${rule.id}: ${txErr.message}`);
+            if (!existing) {
+              const { error: txErr } = await supabaseAdmin.from("transactions").insert({
+                user_id: rule.user_id,
+                household_id: rule.household_id,
+                kind: rule.kind,
+                amount: rule.amount,
+                occurred_on: today,
+                source: rule.name,
+                category_id: rule.category_id,
+                recurring_rule_id: rule.id,
+              });
+              if (txErr) {
+                errors.push(`${rule.id}: ${txErr.message}`);
+              } else {
+                processed++;
+              }
             } else {
-              processed++;
+              skipped++;
             }
           } else {
             skipped++;
