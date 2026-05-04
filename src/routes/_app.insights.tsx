@@ -541,8 +541,8 @@ function InsightsPage() {
           <FoodProgressBar spend={foodSpend} budget={foodBudget} />
           <div className="flex justify-between text-[11px] text-muted-foreground">
             <span>£0</span>
-            <span>£800</span>
-            <span>£1,600</span>
+            <span>{formatMoney(foodBudget / 2)}</span>
+            <span>{formatMoney(foodBudget)}</span>
           </div>
         </div>
       </SectionCard>
