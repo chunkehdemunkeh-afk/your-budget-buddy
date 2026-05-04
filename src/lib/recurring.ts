@@ -46,3 +46,21 @@ export function toDateOnly(d: Date): string {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
+
+/**
+ * If dateStr falls on a weekend, shift it to the nearest weekday.
+ * Outgoing: Saturday/Sunday → following Monday (banks take DDs on next business day).
+ * Income: Saturday/Sunday → preceding Friday (pay arrives early).
+ */
+export function adjustForWeekend(dateStr: string, kind: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  const dow = d.getDay(); // 0 = Sunday, 6 = Saturday
+  if (dow === 6) {
+    // Saturday
+    d.setDate(d.getDate() + (kind === "income" ? -1 : 2));
+  } else if (dow === 0) {
+    // Sunday
+    d.setDate(d.getDate() + (kind === "income" ? -2 : 1));
+  }
+  return toDateOnly(d);
+}

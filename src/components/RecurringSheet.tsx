@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,6 +38,7 @@ export interface RecurringRule {
   next_run: string;
   category_id: string | null;
   paused: boolean;
+  weekend_adjust: boolean;
 }
 
 interface Props {
@@ -64,6 +66,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
   const [frequency, setFrequency] = useState<Frequency>("monthly");
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [weekendAdjust, setWeekendAdjust] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -75,6 +78,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         setFrequency(rule.frequency);
         setStartDate(rule.start_date);
         setCategoryId(rule.category_id);
+        setWeekendAdjust(rule.weekend_adjust);
       } else {
         setName("");
         setAmount("");
@@ -82,6 +86,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         setFrequency("monthly");
         setStartDate(new Date().toISOString().slice(0, 10));
         setCategoryId(null);
+        setWeekendAdjust(false);
       }
     }
   }, [open, rule, defaultKind]);
@@ -114,7 +119,9 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
           kind: parsed.data.kind,
           frequency: parsed.data.frequency,
           start_date: parsed.data.start_date,
+          next_run: parsed.data.start_date,
           category_id: parsed.data.category_id,
+          weekend_adjust: weekendAdjust,
         })
         .eq("id", rule.id);
       setSubmitting(false);
@@ -135,6 +142,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         start_date: parsed.data.start_date,
         next_run: parsed.data.start_date,
         category_id: parsed.data.category_id,
+        weekend_adjust: weekendAdjust,
       });
       setSubmitting(false);
       if (error) {
@@ -253,6 +261,18 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium">Adjust for weekends</p>
+              <p className="text-xs text-muted-foreground">
+                {kind === "income"
+                  ? "Falls on weekend → paid the Friday before"
+                  : "Falls on weekend → taken the Monday after"}
+              </p>
+            </div>
+            <Switch checked={weekendAdjust} onCheckedChange={setWeekendAdjust} />
           </div>
 
           <DialogFooter>

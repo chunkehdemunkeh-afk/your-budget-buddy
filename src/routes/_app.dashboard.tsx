@@ -28,6 +28,7 @@ import {
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { adjustForWeekend } from "@/lib/recurring";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({
@@ -76,6 +77,7 @@ interface AllRecurringRule {
   next_run: string;
   frequency: "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly";
   kind: "income" | "outgoing" | "shopping";
+  weekend_adjust: boolean;
 }
 interface OneOffBill {
   id: string;
@@ -166,6 +168,27 @@ function occurrencesInRange(
   return results;
 }
 
+// Returns occurrences of a rule within [startStr, endStr], applying weekend
+// adjustment when enabled. Expands the search 2 days before startStr so that
+// outgoing payments scheduled on the preceding Sat/Sun (which shift to Monday)
+// are correctly included in the week they are actually paid.
+function adjustedOccurrencesInRange(
+  rule: AllRecurringRule,
+  startStr: string,
+  endStr: string,
+): string[] {
+  if (!rule.weekend_adjust) {
+    return occurrencesInRange(rule.next_run, rule.frequency, startStr, endStr);
+  }
+  const expandedStartDate = new Date(startStr + "T12:00:00");
+  expandedStartDate.setDate(expandedStartDate.getDate() - 2);
+  const expandedStart = toLocalDate(expandedStartDate);
+  const adjusted = occurrencesInRange(rule.next_run, rule.frequency, expandedStart, endStr)
+    .map((ds) => adjustForWeekend(ds, rule.kind))
+    .filter((ds) => ds >= startStr && ds <= endStr);
+  return [...new Set(adjusted)];
+}
+
 function computeWeekBalance(
   weekOffset: number,
   currentBalance: number,
@@ -202,7 +225,7 @@ function computeWeekBalance(
       const tomorrowStr = toLocalDate(tomorrow);
       if (tomorrowStr <= endStr) {
         allRecurring.forEach((rule) => {
-          occurrencesInRange(rule.next_run, rule.frequency, tomorrowStr, endStr).forEach(() => {
+          adjustedOccurrencesInRange(rule, tomorrowStr, endStr).forEach(() => {
             projectedNet += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
           });
         });
@@ -218,7 +241,7 @@ function computeWeekBalance(
   for (let w = 1; w < weekOffset; w++) {
     const { startStr: ws, endStr: we } = getWeekBounds(w);
     allRecurring.forEach((rule) => {
-      occurrencesInRange(rule.next_run, rule.frequency, ws, we).forEach(() => {
+      adjustedOccurrencesInRange(rule, ws, we).forEach(() => {
         balance += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
       });
     });
@@ -226,7 +249,7 @@ function computeWeekBalance(
   const opening = balance;
   let weekNet = 0;
   allRecurring.forEach((rule) => {
-    occurrencesInRange(rule.next_run, rule.frequency, startStr, endStr).forEach(() => {
+    adjustedOccurrencesInRange(rule, startStr, endStr).forEach(() => {
       weekNet += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
     });
   });
@@ -293,7 +316,7 @@ function DashboardPage() {
           supabase.from("transactions").select("kind, amount, occurred_on"),
           supabase
             .from("recurring_rules")
-            .select("id, name, amount, next_run, frequency, kind")
+            .select("id, name, amount, next_run, frequency, kind, weekend_adjust")
             .eq("paused", false)
             .order("next_run", { ascending: true }),
           supabase
@@ -762,7 +785,7 @@ function WeekAheadSection({
 
     if (futureFrom <= endStr) {
       allRecurring.forEach((rule) => {
-        occurrencesInRange(rule.next_run, rule.frequency, futureFrom, endStr).forEach((ds) => {
+        adjustedOccurrencesInRange(rule, futureFrom, endStr).forEach((ds) => {
           result[ds]?.push({
             name: rule.name,
             amount: Number(rule.amount),

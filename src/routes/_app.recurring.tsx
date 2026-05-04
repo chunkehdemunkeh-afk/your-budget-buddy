@@ -21,7 +21,7 @@ import {
 import { Plus, Repeat, Pencil, Trash2, Play, Repeat2, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import { formatMoney, formatShortDate } from "@/lib/format";
-import { frequencyLabel, nextRunFrom, toDateOnly, displayNextRun } from "@/lib/recurring";
+import { frequencyLabel, nextRunFrom, toDateOnly, displayNextRun, adjustForWeekend } from "@/lib/recurring";
 import { RecurringSheet, type RecurringRule } from "@/components/RecurringSheet";
 import { cn } from "@/lib/utils";
 
@@ -64,7 +64,7 @@ function RecurringPage() {
     async function load() {
       const { data, error } = await supabase
         .from("recurring_rules")
-        .select("id, name, amount, kind, frequency, start_date, next_run, category_id, paused")
+        .select("id, name, amount, kind, frequency, start_date, next_run, category_id, paused, weekend_adjust")
         .order("next_run", { ascending: true });
       if (!mounted) return;
       if (error) toast.error(error.message);
@@ -539,7 +539,17 @@ function RuleList({
                   </span>
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {frequencyLabel(r.frequency)} · next {formatShortDate(displayNextRun(r.next_run, r.frequency))}
+                  {frequencyLabel(r.frequency)} · next{" "}
+                  {formatShortDate(
+                    r.weekend_adjust
+                      ? adjustForWeekend(displayNextRun(r.next_run, r.frequency), r.kind)
+                      : displayNextRun(r.next_run, r.frequency),
+                  )}
+                  {r.weekend_adjust && (
+                    <span className="ml-1.5 inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      weekday
+                    </span>
+                  )}
                   {cat ? ` · ${cat.name}` : ""}
                 </p>
               </div>
