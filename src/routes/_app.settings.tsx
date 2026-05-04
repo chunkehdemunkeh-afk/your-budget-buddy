@@ -32,6 +32,10 @@ function SettingsPage() {
   const [openingBalance, setOpeningBalance] = useState("");
   const [openingBalanceDate, setOpeningBalanceDate] = useState("");
   const [householdName, setHouseholdName] = useState("");
+  const [adults, setAdults] = useState("2");
+  const [children, setChildren] = useState("0");
+  const [pets, setPets] = useState("0");
+  const [foodBudgetOverride, setFoodBudgetOverride] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [members, setMembers] = useState<Member[]>([]);
