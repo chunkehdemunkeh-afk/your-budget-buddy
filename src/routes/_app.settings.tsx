@@ -66,12 +66,12 @@ function SettingsPage() {
 
       const { data: mem } = await supabase
         .from("household_members")
-        .select("user_id, joined_at, profiles:profiles!inner(display_name)")
+        .select("user_id, joined_at, profiles(display_name)")
         .eq("household_id", householdId!)
         .order("joined_at", { ascending: true });
       if (!mounted) return;
       // We can't read auth.users emails from the client; show display_name + own email.
-      const enriched: Member[] = ((mem as unknown as Array<{ user_id: string; joined_at: string; profiles: { display_name: string | null } }>) ?? []).map((m) => ({
+      const enriched: Member[] = ((mem as unknown as Array<{ user_id: string; joined_at: string; profiles: { display_name: string | null } | null }>) ?? []).map((m) => ({
         user_id: m.user_id,
         joined_at: m.joined_at,
         display_name: m.profiles?.display_name ?? null,
