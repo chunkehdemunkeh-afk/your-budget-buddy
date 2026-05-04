@@ -330,21 +330,21 @@ function InsightsPage() {
         icon: <ShoppingCart className="h-4 w-4" />,
         type: "warning",
         title: "Food shopping over budget",
-        body: `You've spent ${formatMoney(foodSpend)} on food this month — ${formatMoney(foodSpend - foodBudget)} over the £1,600 family budget. Batch cooking and a weekly meal plan can help stretch remaining spend.`,
+        body: `You've spent ${formatMoney(foodSpend)} on food this month — ${formatMoney(foodSpend - foodBudget)} over your ${formatMoney(foodBudget)} monthly food budget. Batch cooking and a weekly meal plan can help stretch remaining spend.`,
       });
     } else if (foodPace > foodBudget * 1.1 && dayOfMonth > 5) {
       tips.push({
         icon: <ShoppingCart className="h-4 w-4" />,
         type: "warning",
         title: "Food shopping tracking high",
-        body: `At your current pace you'll spend around ${formatMoney(Math.round(foodPace))} on food. The family budget is £1,600 — ${formatMoney(foodBudget - foodSpend)} remaining, roughly ${formatMoney(Math.round((foodBudget - foodSpend) / weeksRemaining))} per week.`,
+        body: `At your current pace you'll spend around ${formatMoney(Math.round(foodPace))} on food. Your monthly food budget is ${formatMoney(foodBudget)} — ${formatMoney(foodBudget - foodSpend)} remaining, roughly ${formatMoney(Math.round((foodBudget - foodSpend) / weeksRemaining))} per week.`,
       });
     } else if (foodSpend > 0) {
       tips.push({
         icon: <ShoppingCart className="h-4 w-4" />,
         type: "success",
         title: "Food shopping on track",
-        body: `${formatMoney(foodSpend)} spent so far — ${formatMoney(foodBudget - foodSpend)} left of the £1,600 family budget. That's roughly ${formatMoney(Math.round((foodBudget - foodSpend) / weeksRemaining))} per remaining week.`,
+        body: `${formatMoney(foodSpend)} spent so far — ${formatMoney(foodBudget - foodSpend)} left of your ${formatMoney(foodBudget)} monthly food budget. That's roughly ${formatMoney(Math.round((foodBudget - foodSpend) / weeksRemaining))} per remaining week.`,
       });
     }
 
