@@ -1,85 +1,76 @@
-# Stages 3-5 — Recurring, Goals & PWA
+## Per-household food budget
 
-Three remaining stages to finish Pursely. After this, the app is feature-complete.
+Replace the hardcoded £1,600 family food budget with a per-household value that's calculated from household composition by default but can be overridden manually.
 
-## Stage 3 — Recurring bills & income streams
+### How the budget gets calculated
 
-A "recurring rule" is something that auto-creates a transaction on a schedule (rent every month, payday every 4 weeks, gym fortnightly).
+UK-average monthly food costs used as the suggested default:
 
-**`/recurring` page** — a tabbed view (Outgoing bills | Income streams) showing every rule with:
-- Name, amount, frequency, next run date
-- Pause/resume toggle
-- Edit and delete
-- Quick "Run now" button (creates the transaction immediately and rolls the next-run date forward)
+- Adults: **£200** each
+- Children: **£140** each
+- Pets: **£30** each
 
-**Add/Edit rule sheet** opened from a + button. Fields: name, kind (income/outgoing), amount, category, frequency (weekly / fortnightly / monthly / yearly), start date.
+Example: 2 adults + 4 children + 1 pet = £200×2 + £140×4 + £30 = **£990/month**
 
-**Auto-running rules** — a daily scheduled job creates transactions for any rule whose `next_run` is today or earlier, then advances `next_run` by the frequency. Built as a TanStack server route at `/api/public/hooks/run-recurring` and triggered by a `pg_cron` job at 06:00 UTC daily. Logic runs server-side for every user in one pass (no per-user cron).
+The user enters the three numbers, sees the suggested total, and can either accept it or type a different number. If they edit the manual override, that number is used everywhere. If they clear it, we fall back to the calculated value.
 
-**Dashboard already shows** the next-7-days "Coming up" feed from these rules — it'll start lighting up immediately.
+### Settings UI (Household section)
 
-## Stage 4 — Savings goals
+A new "Food budget" subsection under Household, above the members list:
 
-**`/goals` page** — grid of goal cards. Each card shows:
-- Name, icon and brand colour
-- Big progress ring (saved / target)
-- Target date and a smart "save £X/month to hit it" hint
-- Tap to open detail sheet
+```text
+Food budget
+─────────────────────────
+Adults    [ 2 ]
+Children  [ 4 ]
+Pets      [ 1 ]
 
-**Add/Edit goal sheet**: name, target amount, optional target date, colour and icon picker.
+Suggested: £990/month
+(£200/adult, £140/child, £30/pet)
 
-**Goal detail sheet**: progress ring, list of contributions, and an "Add contribution" form (amount, date, optional note). Each contribution writes to `goal_contributions` and the dashboard's goals widget reflects it in real time.
+Monthly food budget
+£ [ 990            ]   [Use suggested]
+```
 
-**Quick-add contribution** also available from the dashboard goals widget (tap a goal → add).
+The "Use suggested" button appears only when the manual figure differs from the calculated one. Saved together with the rest of the household via the existing "Save household" button.
 
-## Stage 5 — Mobile install (PWA-lite) & polish
+### Where it's used
 
-A simple installable web app — no service worker, no offline cache (those break Lovable's preview iframe). Just enough so iPhone/Android users can "Add to Home Screen" and get a full-screen, native-feeling app.
+The Insights page food shopping tracker currently shows hardcoded "£1,600 family budget" in 5 places (progress bar, headline, remaining/over text, smart suggestion bodies). All of these switch to read the household's budget. Copy changes from "the £1,600 family budget" → "your monthly food budget".
 
-- `public/manifest.webmanifest` with `display: standalone`, theme/background colour matching brand, name "Pursely", short_name "Pursely"
-- App icons (192 / 512 / maskable / Apple touch)
-- iOS-specific meta tags (`apple-mobile-web-app-capable`, status bar style, splash colour)
-- Manifest + meta wired into `__root.tsx`
+### Technical details
 
-**Install prompt UX**: small "Install Pursely" banner on the dashboard for eligible browsers (uses `beforeinstallprompt`); on iOS Safari, a one-time tooltip explaining "Share → Add to Home Screen".
+**Database** (migration):
+- Add to `households` table:
+  - `adults int not null default 2`
+  - `children int not null default 0`
+  - `pets int not null default 0`
+  - `food_budget_override numeric` (nullable — null means "use calculated")
 
-**Polish pass**:
-- Empty-state illustrations across goals/recurring/activity
-- Settings page: display name, sign out, theme toggle (light/dark/system), delete account confirmation
-- Edit/delete on individual transactions in `/transactions`
-- Loading skeletons replacing the current "Loading…" text
+**Shared helper** (`src/lib/food-budget.ts`, new file):
+```ts
+export const FOOD_RATES = { adult: 200, child: 140, pet: 30 };
+export function calculateFoodBudget(adults, children, pets) { ... }
+export function effectiveFoodBudget(household) {
+  return household.food_budget_override
+    ?? calculateFoodBudget(household.adults, household.children, household.pets);
+}
+```
 
-## Technical details
+**Settings page** (`src/routes/_app.settings.tsx`):
+- Load the four new fields alongside existing household data
+- Add inputs + suggested calculation display
+- Include the four fields in the `saveHousehold` update
 
-**New files**
-- `src/routes/_app.recurring.tsx` (replace placeholder) — list, pause toggle, run-now
-- `src/components/RecurringSheet.tsx` — add/edit dialog
-- `src/routes/_app.goals.tsx` (replace placeholder) — grid + add/edit/contribute
-- `src/components/GoalSheet.tsx`, `src/components/ContributionSheet.tsx`
-- `src/routes/api/public/hooks/run-recurring.ts` — server route processing all due rules
-- `src/components/InstallPrompt.tsx` — beforeinstallprompt + iOS hint
-- `public/manifest.webmanifest` and PWA icons in `public/icons/`
+**Insights page** (`src/routes/_app.insights.tsx`):
+- Remove `const FOOD_BUDGET = 1600`
+- Fetch household record (or get from `useAuth` if extended) to compute `effectiveFoodBudget`
+- Replace 5 hardcoded references with the dynamic value
+- Update copy: "£1,600 family budget" → "monthly food budget" / dynamic amount
 
-**Server route logic** (`run-recurring.ts`)
-1. Service-role client selects all rules where `paused = false` and `next_run <= today`
-2. For each rule: insert a row into `transactions` (with `recurring_rule_id` set), then advance `next_run` by frequency (`+7d` / `+14d` / `+1 month` / `+1 year`)
-3. Idempotency guard: skip insert if a transaction with same `recurring_rule_id` and `occurred_on` already exists
-4. Returns `{ processed: N }`
+**Backwards compatibility**: existing households default to 2 adults / 0 children / 0 pets = £400 suggested. Users can correct on first visit to Settings. No data loss.
 
-**Cron** — `pg_cron` job calls the route daily at 06:00 UTC. Set up via the insert tool (not migrations) since it embeds the URL and anon key.
+### Out of scope
 
-**Frequency advance** — done in TypeScript using `date-fns` (already used by shadcn calendar) for safe month/year math.
-
-**Realtime** — recurring rules and goal contributions tables are already covered by the dashboard channel; goals page subscribes to `goals` and `goal_contributions` directly.
-
-**Validation** — every form uses zod with the same patterns as Stage 2 (positive amounts, length caps, trimmed strings).
-
-**No new tables needed** — existing schema (`recurring_rules`, `goals`, `goal_contributions`) covers everything.
-
-## What you'll be able to do at the end
-
-- Log income, outgoings and shopping (done)
-- See balance, charts, goals, upcoming bills update in real time (done)
-- Set up recurring bills/income that auto-post each cycle
-- Track savings goals with progress and contributions
-- Install Pursely on your phone home screen and use it like a native app
+- No per-category budgets for non-food spending (separate feature)
+- Suggested rates are fixed constants, not user-configurable (can revisit later)

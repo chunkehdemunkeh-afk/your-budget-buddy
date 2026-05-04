@@ -216,31 +216,43 @@ export type Database = {
       }
       households: {
         Row: {
+          adults: number
+          children: number
           created_at: string
           created_by: string
           currency: string
+          food_budget_override: number | null
           id: string
           name: string
           opening_balance: number
           opening_balance_date: string | null
+          pets: number
         }
         Insert: {
+          adults?: number
+          children?: number
           created_at?: string
           created_by: string
           currency?: string
+          food_budget_override?: number | null
           id?: string
           name?: string
           opening_balance?: number
           opening_balance_date?: string | null
+          pets?: number
         }
         Update: {
+          adults?: number
+          children?: number
           created_at?: string
           created_by?: string
           currency?: string
+          food_budget_override?: number | null
           id?: string
           name?: string
           opening_balance?: number
           opening_balance_date?: string | null
+          pets?: number
         }
         Relationships: []
       }
