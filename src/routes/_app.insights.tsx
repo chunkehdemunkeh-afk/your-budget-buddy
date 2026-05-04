@@ -124,7 +124,7 @@ function InsightsPage() {
   const foodBudget = useMemo(() => effectiveFoodBudget(household), [household]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !householdId) return;
     let mounted = true;
 
     async function load() {
@@ -133,7 +133,7 @@ function InsightsPage() {
       sixMonthsAgo.setDate(1);
       const sixMonthsAgoStr = toDateOnly(sixMonthsAgo);
 
-      const [txRes, catRes, goalRes, contribRes, recRes] = await Promise.all([
+      const [txRes, catRes, goalRes, contribRes, recRes, hhRes] = await Promise.all([
         supabase
           .from("transactions")
           .select("id, kind, amount, occurred_on, category_id, note, source")
@@ -147,6 +147,11 @@ function InsightsPage() {
           .from("recurring_rules")
           .select("id, name, amount, frequency, kind")
           .eq("paused", false),
+        supabase
+          .from("households")
+          .select("adults, children, pets, food_budget_override")
+          .eq("id", householdId!)
+          .maybeSingle(),
       ]);
 
       if (!mounted) return;
@@ -155,6 +160,7 @@ function InsightsPage() {
       setGoals((goalRes.data as Goal[]) ?? []);
       setContributions((contribRes.data as Contrib[]) ?? []);
       setRecurringRules((recRes.data as RecurRule[]) ?? []);
+      setHousehold((hhRes.data as HouseholdComposition | null) ?? null);
       setLoading(false);
     }
 
@@ -162,7 +168,7 @@ function InsightsPage() {
     return () => {
       mounted = false;
     };
-  }, [user]);
+  }, [user, householdId]);
 
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
