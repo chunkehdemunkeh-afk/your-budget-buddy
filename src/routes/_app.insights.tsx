@@ -264,6 +264,14 @@ function InsightsPage() {
     [recurringRules],
   );
 
+  const monthlyRecurringIn = useMemo(
+    () =>
+      recurringRules
+        .filter((r) => r.kind === "income")
+        .reduce((s, r) => s + monthlyEquivalent(Number(r.amount), r.frequency), 0),
+    [recurringRules],
+  );
+
   const healthScore = useMemo(() => {
     // Savings rate (40 pts)
     let savingsRate = 0;
@@ -498,12 +506,13 @@ function InsightsPage() {
 
       {/* ── Monthly Overview ── */}
       <SectionCard title="Monthly overview" icon={<Wallet className="h-4 w-4" />}>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <OverviewStat
-            label="Income"
-            value={thisMonth.income}
-            pctChange={incomePctChange}
+            label="Expected income"
+            value={monthlyRecurringIn}
+            pctChange={null}
             positive
+            sublabel={thisMonth.income > 0 ? `${formatMoney(thisMonth.income)} received so far` : "from recurring rules"}
           />
           <OverviewStat
             label="Outgoings"
@@ -511,11 +520,13 @@ function InsightsPage() {
             pctChange={outgoingPctChange}
             positive={false}
           />
+        </div>
+        <div className="mt-3">
           <OverviewStat
             label="Net"
-            value={thisMonth.net}
-            pctChange={netPctChange}
-            positive={thisMonth.net >= 0}
+            value={monthlyRecurringIn - thisMonth.outgoing}
+            pctChange={null}
+            positive={monthlyRecurringIn >= thisMonth.outgoing}
           />
         </div>
       </SectionCard>
@@ -808,11 +819,13 @@ function OverviewStat({
   value,
   pctChange: change,
   positive,
+  sublabel,
 }: {
   label: string;
   value: number;
   pctChange: number | null;
   positive: boolean;
+  sublabel?: string;
 }) {
   return (
     <div className="rounded-2xl bg-muted/40 p-3">
@@ -826,6 +839,9 @@ function OverviewStat({
       >
         {formatMoney(value)}
       </p>
+      {sublabel && (
+        <p className="mt-0.5 text-[11px] text-muted-foreground">{sublabel}</p>
+      )}
       {change !== null && (
         <p
           className={cn(
