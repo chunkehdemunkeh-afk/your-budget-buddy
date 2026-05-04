@@ -520,7 +520,7 @@ function InsightsPage() {
           <div className="flex items-end justify-between">
             <div>
               <p className="text-2xl font-bold tabular-nums">{formatMoney(foodSpend)}</p>
-              <p className="text-xs text-muted-foreground">of £1,600 family budget</p>
+              <p className="text-xs text-muted-foreground">of {formatMoney(foodBudget)} monthly food budget</p>
             </div>
             <div className="text-right">
               {foodSpend <= foodBudget ? (
