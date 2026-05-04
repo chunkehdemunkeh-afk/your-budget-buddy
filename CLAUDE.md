@@ -17,6 +17,10 @@ No test suite is configured. There is no `bun test` command.
 
 `bun` is only available in the user's own terminal — it is NOT on Claude Code's PATH. Claude Code cannot run `bun dev`, `bun lint`, or `bun build` directly. Recommend the user run `! bun dev` themselves. `npx` also fails for lint/typecheck because node_modules are managed by bun.
 
+## Git workflow
+
+**Always `git pull --rebase` before making any changes.** The remote may have commits from Lovable or other sources that aren't local. Failing to pull first causes rejected pushes. When pushing, if the remote has diverged, stash any unstaged changes, pull with rebase, pop the stash, then push.
+
 ## What this app is
 
 **Pursely** — a mobile-first PWA personal budget tracker. Users track income, outgoings, savings goals, and recurring bills. The app name in the codebase/branding is "Pursely"; the repo folder is named `your-budget-buddy`.
@@ -71,7 +75,7 @@ New tables must be created via the **Supabase SQL editor** (Dashboard → SQL Ed
 - `household_members` — `household_id`, `user_id`, `joined_at`. Join table; use `is_household_member()` security-definer function in RLS.
 - `household_invites` — `id`, `household_id`, `email`, `invited_by`, `created_at`, `accepted_at`. Pending invites have `accepted_at IS NULL`; new signups auto-join if a matching invite exists.
 - `transactions` — `kind: "income" | "outgoing" | "shopping"`, `household_id` (NOT NULL), linked to `categories` and optionally `recurring_rules`
-- `recurring_rules` — `frequency: "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly"`, `next_run: date`, `paused: boolean`, `household_id` (NOT NULL). The cron endpoint inserts a transaction and advances `next_run` each cycle.
+- `recurring_rules` — `frequency: "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly"`, `next_run: date`, `paused: boolean`, `weekend_adjust: boolean` (default false), `household_id` (NOT NULL). The cron endpoint inserts a transaction and advances `next_run` each cycle. When `weekend_adjust` is true, dates falling on Saturday/Sunday are shifted: outgoing → following Monday, income → preceding Friday.
 - `goals` + `goal_contributions` — savings goals with individual deposits; `goal_contributions` has `occurred_on: string` (YYYY-MM-DD) for date filtering; both have `household_id` (NOT NULL)
 - `categories` — `"income" | "outgoing"`, hex `color`; `monthly_budget: number | null`; `household_id` (NOT NULL)
 - `one_off_bills` — `name text`, `amount numeric` (required), `due_date date` (optional), `paid boolean` (default false), `paid_at timestamptz`, `household_id` (NOT NULL). Unpaid bills with a `due_date` appear in the Week Ahead as projected outgoings; ticking paid creates an outgoing transaction for today.
@@ -86,7 +90,7 @@ New tables must be created via the **Supabase SQL editor** (Dashboard → SQL Ed
 ## Key lib utilities
 
 - `src/lib/balance.ts` — `calculateCurrentBalance({ openingBalance, openingBalanceDate, transactions, asOfDate? })` computes the true running balance, filtering out transactions before `openingBalanceDate` AND after `asOfDate` (defaults to today — future-dated transactions are excluded). Used on the dashboard.
-- `src/lib/recurring.ts` — frequency helpers. **Always use `displayNextRun(rule.next_run, rule.frequency)` for display** — the raw `next_run` in the DB can be stale if the cron hasn't fired. `toDateOnly(date)` converts a `Date` to a local `YYYY-MM-DD` string safely (avoids BST/UTC midnight issues).
+- `src/lib/recurring.ts` — frequency helpers. **Always use `displayNextRun(rule.next_run, rule.frequency)` for display** — the raw `next_run` in the DB can be stale if the cron hasn't fired. If the rule has `weekend_adjust`, also pipe the result through `adjustForWeekend(dateStr, rule.kind)` before displaying. `toDateOnly(date)` converts a `Date` to a local `YYYY-MM-DD` string safely (avoids BST/UTC midnight issues). `adjustForWeekend(dateStr, kind)` shifts weekend dates to the nearest weekday.
 - `src/lib/format.ts` — `formatMoney()`, `formatShortDate()`
 - `src/hooks/useCategories.ts` — `useCategories()` hook; returns `{ categories, loading }` with a Realtime subscription. Use this instead of fetching categories manually inside pages.
 
