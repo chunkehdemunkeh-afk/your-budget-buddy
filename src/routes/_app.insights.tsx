@@ -84,7 +84,7 @@ interface RecurRule {
 
 // ─── Constants & helpers ────────────────────────────────────────────────────────
 
-const FOOD_BUDGET = 1600;
+
 
 function monthlyEquivalent(amount: number, frequency: string): number {
   switch (frequency) {
