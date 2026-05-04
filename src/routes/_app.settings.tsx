@@ -5,8 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, Save, Loader2, UserPlus, X, Mail } from "lucide-react";
+import { LogOut, Save, Loader2, UserPlus, X, Mail, Utensils } from "lucide-react";
 import { toast } from "sonner";
+import { calculateFoodBudget, FOOD_RATES } from "@/lib/food-budget";
+import { formatMoney } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — Pursely" }] }),
