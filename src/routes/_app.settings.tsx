@@ -60,13 +60,21 @@ function SettingsPage() {
     async function loadHousehold() {
       const { data: hh } = await supabase
         .from("households")
-        .select("name, opening_balance, opening_balance_date")
+        .select("name, opening_balance, opening_balance_date, adults, children, pets, food_budget_override")
         .eq("id", householdId!)
         .maybeSingle();
       if (!mounted) return;
       setHouseholdName(hh?.name ?? "");
       setOpeningBalance(String(hh?.opening_balance ?? 0));
       setOpeningBalanceDate(hh?.opening_balance_date ?? "");
+      setAdults(String((hh as { adults?: number } | null)?.adults ?? 2));
+      setChildren(String((hh as { children?: number } | null)?.children ?? 0));
+      setPets(String((hh as { pets?: number } | null)?.pets ?? 0));
+      setFoodBudgetOverride(
+        (hh as { food_budget_override?: number | null } | null)?.food_budget_override != null
+          ? String((hh as { food_budget_override?: number | null }).food_budget_override)
+          : "",
+      );
 
       const { data: mem } = await supabase
         .from("household_members")
