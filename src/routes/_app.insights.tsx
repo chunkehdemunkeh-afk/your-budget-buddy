@@ -325,26 +325,26 @@ function InsightsPage() {
 
     // Food shopping
     const foodPace = foodSpend / monthProgress;
-    if (foodSpend > FOOD_BUDGET) {
+    if (foodSpend > foodBudget) {
       tips.push({
         icon: <ShoppingCart className="h-4 w-4" />,
         type: "warning",
         title: "Food shopping over budget",
-        body: `You've spent ${formatMoney(foodSpend)} on food this month — ${formatMoney(foodSpend - FOOD_BUDGET)} over the £1,600 family budget. Batch cooking and a weekly meal plan can help stretch remaining spend.`,
+        body: `You've spent ${formatMoney(foodSpend)} on food this month — ${formatMoney(foodSpend - foodBudget)} over the £1,600 family budget. Batch cooking and a weekly meal plan can help stretch remaining spend.`,
       });
-    } else if (foodPace > FOOD_BUDGET * 1.1 && dayOfMonth > 5) {
+    } else if (foodPace > foodBudget * 1.1 && dayOfMonth > 5) {
       tips.push({
         icon: <ShoppingCart className="h-4 w-4" />,
         type: "warning",
         title: "Food shopping tracking high",
-        body: `At your current pace you'll spend around ${formatMoney(Math.round(foodPace))} on food. The family budget is £1,600 — ${formatMoney(FOOD_BUDGET - foodSpend)} remaining, roughly ${formatMoney(Math.round((FOOD_BUDGET - foodSpend) / weeksRemaining))} per week.`,
+        body: `At your current pace you'll spend around ${formatMoney(Math.round(foodPace))} on food. The family budget is £1,600 — ${formatMoney(foodBudget - foodSpend)} remaining, roughly ${formatMoney(Math.round((foodBudget - foodSpend) / weeksRemaining))} per week.`,
       });
     } else if (foodSpend > 0) {
       tips.push({
         icon: <ShoppingCart className="h-4 w-4" />,
         type: "success",
         title: "Food shopping on track",
-        body: `${formatMoney(foodSpend)} spent so far — ${formatMoney(FOOD_BUDGET - foodSpend)} left of the £1,600 family budget. That's roughly ${formatMoney(Math.round((FOOD_BUDGET - foodSpend) / weeksRemaining))} per remaining week.`,
+        body: `${formatMoney(foodSpend)} spent so far — ${formatMoney(foodBudget - foodSpend)} left of the £1,600 family budget. That's roughly ${formatMoney(Math.round((foodBudget - foodSpend) / weeksRemaining))} per remaining week.`,
       });
     }
 
@@ -523,13 +523,13 @@ function InsightsPage() {
               <p className="text-xs text-muted-foreground">of £1,600 family budget</p>
             </div>
             <div className="text-right">
-              {foodSpend <= FOOD_BUDGET ? (
+              {foodSpend <= foodBudget ? (
                 <p className="text-sm font-semibold text-[var(--color-success)]">
-                  {formatMoney(FOOD_BUDGET - foodSpend)} remaining
+                  {formatMoney(foodBudget - foodSpend)} remaining
                 </p>
               ) : (
                 <p className="text-sm font-semibold text-destructive">
-                  {formatMoney(foodSpend - FOOD_BUDGET)} over
+                  {formatMoney(foodSpend - foodBudget)} over
                 </p>
               )}
               <p className="text-xs text-muted-foreground">
@@ -538,7 +538,7 @@ function InsightsPage() {
               </p>
             </div>
           </div>
-          <FoodProgressBar spend={foodSpend} budget={FOOD_BUDGET} />
+          <FoodProgressBar spend={foodSpend} budget={foodBudget} />
           <div className="flex justify-between text-[11px] text-muted-foreground">
             <span>£0</span>
             <span>£800</span>
