@@ -345,6 +345,7 @@ export type Database = {
           paused: boolean
           start_date: string
           user_id: string
+          weekend_adjust: boolean
         }
         Insert: {
           amount: number
@@ -360,6 +361,7 @@ export type Database = {
           paused?: boolean
           start_date?: string
           user_id: string
+          weekend_adjust?: boolean
         }
         Update: {
           amount?: number
@@ -375,6 +377,7 @@ export type Database = {
           paused?: boolean
           start_date?: string
           user_id?: string
+          weekend_adjust?: boolean
         }
         Relationships: [
           {
