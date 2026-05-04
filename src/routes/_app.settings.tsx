@@ -5,8 +5,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogOut, Save, Loader2, UserPlus, X, Mail } from "lucide-react";
+import { LogOut, Save, Loader2, UserPlus, X, Mail, Utensils } from "lucide-react";
 import { toast } from "sonner";
+import { calculateFoodBudget, FOOD_RATES } from "@/lib/food-budget";
+import { formatMoney } from "@/lib/format";
 
 export const Route = createFileRoute("/_app/settings")({
   head: () => ({ meta: [{ title: "Settings — Pursely" }] }),
@@ -32,6 +34,10 @@ function SettingsPage() {
   const [openingBalance, setOpeningBalance] = useState("");
   const [openingBalanceDate, setOpeningBalanceDate] = useState("");
   const [householdName, setHouseholdName] = useState("");
+  const [adults, setAdults] = useState("2");
+  const [children, setChildren] = useState("0");
+  const [pets, setPets] = useState("0");
+  const [foodBudgetOverride, setFoodBudgetOverride] = useState("");
   const [saving, setSaving] = useState(false);
 
   const [members, setMembers] = useState<Member[]>([]);
@@ -56,13 +62,21 @@ function SettingsPage() {
     async function loadHousehold() {
       const { data: hh } = await supabase
         .from("households")
-        .select("name, opening_balance, opening_balance_date")
+        .select("name, opening_balance, opening_balance_date, adults, children, pets, food_budget_override")
         .eq("id", householdId!)
         .maybeSingle();
       if (!mounted) return;
       setHouseholdName(hh?.name ?? "");
       setOpeningBalance(String(hh?.opening_balance ?? 0));
       setOpeningBalanceDate(hh?.opening_balance_date ?? "");
+      setAdults(String((hh as { adults?: number } | null)?.adults ?? 2));
+      setChildren(String((hh as { children?: number } | null)?.children ?? 0));
+      setPets(String((hh as { pets?: number } | null)?.pets ?? 0));
+      setFoodBudgetOverride(
+        (hh as { food_budget_override?: number | null } | null)?.food_budget_override != null
+          ? String((hh as { food_budget_override?: number | null }).food_budget_override)
+          : "",
+      );
 
       const { data: mem } = await supabase
         .from("household_members")
@@ -121,12 +135,23 @@ function SettingsPage() {
       return;
     }
     setSaving(true);
+    const overrideTrim = foodBudgetOverride.trim();
+    const overrideNum = overrideTrim === "" ? null : parseFloat(overrideTrim);
+    if (overrideNum != null && (isNaN(overrideNum) || overrideNum < 0)) {
+      setSaving(false);
+      toast.error("Food budget must be a positive number");
+      return;
+    }
     const { error } = await supabase
       .from("households")
       .update({
         name: householdName.trim() || "My Budget",
         opening_balance: bal,
         opening_balance_date: openingBalanceDate || null,
+        adults: Math.max(0, parseInt(adults, 10) || 0),
+        children: Math.max(0, parseInt(children, 10) || 0),
+        pets: Math.max(0, parseInt(pets, 10) || 0),
+        food_budget_override: overrideNum,
       })
       .eq("id", householdId);
     setSaving(false);
@@ -326,6 +351,112 @@ function SettingsPage() {
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             {saving ? "Saving…" : "Save household"}
+          </Button>
+        </section>
+
+        <section className="rounded-3xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
+          <div className="mb-1 flex items-center gap-2">
+            <Utensils className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold text-muted-foreground">Food budget</h2>
+          </div>
+          <p className="mb-3 text-xs text-muted-foreground">
+            Tell us about your household and we'll suggest a monthly food budget. You can override it with your own number.
+          </p>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label htmlFor="adults" className="text-xs">Adults</Label>
+              <Input
+                id="adults"
+                inputMode="numeric"
+                value={adults}
+                onChange={(e) => setAdults(e.target.value.replace(/\D/g, ""))}
+                className="mt-1 h-11 rounded-xl text-center"
+              />
+            </div>
+            <div>
+              <Label htmlFor="children" className="text-xs">Children</Label>
+              <Input
+                id="children"
+                inputMode="numeric"
+                value={children}
+                onChange={(e) => setChildren(e.target.value.replace(/\D/g, ""))}
+                className="mt-1 h-11 rounded-xl text-center"
+              />
+            </div>
+            <div>
+              <Label htmlFor="pets" className="text-xs">Pets</Label>
+              <Input
+                id="pets"
+                inputMode="numeric"
+                value={pets}
+                onChange={(e) => setPets(e.target.value.replace(/\D/g, ""))}
+                className="mt-1 h-11 rounded-xl text-center"
+              />
+            </div>
+          </div>
+
+          {(() => {
+            const suggested = calculateFoodBudget(
+              parseInt(adults, 10) || 0,
+              parseInt(children, 10) || 0,
+              parseInt(pets, 10) || 0,
+            );
+            const overrideNum = foodBudgetOverride.trim() === "" ? null : parseFloat(foodBudgetOverride);
+            const usingOverride = overrideNum != null && !isNaN(overrideNum) && overrideNum !== suggested;
+            return (
+              <>
+                <div className="mt-3 rounded-2xl bg-muted/40 px-4 py-3">
+                  <p className="text-xs text-muted-foreground">Suggested</p>
+                  <p className="text-lg font-semibold tabular-nums">
+                    {formatMoney(suggested)}
+                    <span className="text-xs font-normal text-muted-foreground"> / month</span>
+                  </p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    £{FOOD_RATES.adult}/adult · £{FOOD_RATES.child}/child · £{FOOD_RATES.pet}/pet
+                  </p>
+                </div>
+
+                <div className="mt-4">
+                  <Label htmlFor="fbo" className="text-xs">Monthly food budget</Label>
+                  <div className="mt-1 flex gap-2">
+                    <div className="flex flex-1 items-center rounded-xl border border-border bg-background px-3 focus-within:border-primary">
+                      <span className="text-sm font-semibold text-muted-foreground">£</span>
+                      <input
+                        id="fbo"
+                        inputMode="decimal"
+                        placeholder={String(suggested)}
+                        value={foodBudgetOverride}
+                        onChange={(e) => setFoodBudgetOverride(e.target.value.replace(/[^\d.]/g, ""))}
+                        className="ml-1 h-11 w-full bg-transparent text-base outline-none placeholder:text-muted-foreground/50"
+                      />
+                    </div>
+                    {usingOverride && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setFoodBudgetOverride(String(suggested))}
+                        className="h-11 rounded-xl"
+                      >
+                        Use suggested
+                      </Button>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Leave blank to always use the suggested figure.
+                  </p>
+                </div>
+              </>
+            );
+          })()}
+
+          <Button
+            onClick={saveHousehold}
+            disabled={saving}
+            className="mt-4 h-10 w-full rounded-xl bg-[image:var(--gradient-primary)] font-semibold text-primary-foreground shadow-[var(--shadow-soft)]"
+          >
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {saving ? "Saving…" : "Save food budget"}
           </Button>
         </section>
 

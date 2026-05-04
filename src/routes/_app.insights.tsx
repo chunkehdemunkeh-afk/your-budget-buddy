@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatMoney } from "@/lib/format";
 import { toDateOnly } from "@/lib/recurring";
+import { effectiveFoodBudget, type HouseholdComposition } from "@/lib/food-budget";
 import {
   TrendingUp,
   TrendingDown,
@@ -83,7 +84,7 @@ interface RecurRule {
 
 // ─── Constants & helpers ────────────────────────────────────────────────────────
 
-const FOOD_BUDGET = 1600;
+
 
 function monthlyEquivalent(amount: number, frequency: string): number {
   switch (frequency) {
@@ -110,17 +111,20 @@ function pctChange(current: number, previous: number): number | null {
 // ─── InsightsPage ───────────────────────────────────────────────────────────────
 
 function InsightsPage() {
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const [transactions, setTransactions] = useState<Tx[]>([]);
   const [categories, setCategories] = useState<Cat[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [contributions, setContributions] = useState<Contrib[]>([]);
   const [recurringRules, setRecurringRules] = useState<RecurRule[]>([]);
+  const [household, setHousehold] = useState<HouseholdComposition | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAllCats, setShowAllCats] = useState(false);
 
+  const foodBudget = useMemo(() => effectiveFoodBudget(household), [household]);
+
   useEffect(() => {
-    if (!user) return;
+    if (!user || !householdId) return;
     let mounted = true;
 
     async function load() {
@@ -129,7 +133,7 @@ function InsightsPage() {
       sixMonthsAgo.setDate(1);
       const sixMonthsAgoStr = toDateOnly(sixMonthsAgo);
 
-      const [txRes, catRes, goalRes, contribRes, recRes] = await Promise.all([
+      const [txRes, catRes, goalRes, contribRes, recRes, hhRes] = await Promise.all([
         supabase
           .from("transactions")
           .select("id, kind, amount, occurred_on, category_id, note, source")
@@ -143,6 +147,11 @@ function InsightsPage() {
           .from("recurring_rules")
           .select("id, name, amount, frequency, kind")
           .eq("paused", false),
+        supabase
+          .from("households")
+          .select("adults, children, pets, food_budget_override")
+          .eq("id", householdId!)
+          .maybeSingle(),
       ]);
 
       if (!mounted) return;
@@ -151,6 +160,7 @@ function InsightsPage() {
       setGoals((goalRes.data as Goal[]) ?? []);
       setContributions((contribRes.data as Contrib[]) ?? []);
       setRecurringRules((recRes.data as RecurRule[]) ?? []);
+      setHousehold((hhRes.data as HouseholdComposition | null) ?? null);
       setLoading(false);
     }
 
@@ -158,7 +168,7 @@ function InsightsPage() {
     return () => {
       mounted = false;
     };
-  }, [user]);
+  }, [user, householdId]);
 
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
@@ -321,26 +331,26 @@ function InsightsPage() {
 
     // Food shopping
     const foodPace = foodSpend / monthProgress;
-    if (foodSpend > FOOD_BUDGET) {
+    if (foodSpend > foodBudget) {
       tips.push({
         icon: <ShoppingCart className="h-4 w-4" />,
         type: "warning",
         title: "Food shopping over budget",
-        body: `You've spent ${formatMoney(foodSpend)} on food this month — ${formatMoney(foodSpend - FOOD_BUDGET)} over the £1,600 family budget. Batch cooking and a weekly meal plan can help stretch remaining spend.`,
+        body: `You've spent ${formatMoney(foodSpend)} on food this month — ${formatMoney(foodSpend - foodBudget)} over your ${formatMoney(foodBudget)} monthly food budget. Batch cooking and a weekly meal plan can help stretch remaining spend.`,
       });
-    } else if (foodPace > FOOD_BUDGET * 1.1 && dayOfMonth > 5) {
+    } else if (foodPace > foodBudget * 1.1 && dayOfMonth > 5) {
       tips.push({
         icon: <ShoppingCart className="h-4 w-4" />,
         type: "warning",
         title: "Food shopping tracking high",
-        body: `At your current pace you'll spend around ${formatMoney(Math.round(foodPace))} on food. The family budget is £1,600 — ${formatMoney(FOOD_BUDGET - foodSpend)} remaining, roughly ${formatMoney(Math.round((FOOD_BUDGET - foodSpend) / weeksRemaining))} per week.`,
+        body: `At your current pace you'll spend around ${formatMoney(Math.round(foodPace))} on food. Your monthly food budget is ${formatMoney(foodBudget)} — ${formatMoney(foodBudget - foodSpend)} remaining, roughly ${formatMoney(Math.round((foodBudget - foodSpend) / weeksRemaining))} per week.`,
       });
     } else if (foodSpend > 0) {
       tips.push({
         icon: <ShoppingCart className="h-4 w-4" />,
         type: "success",
         title: "Food shopping on track",
-        body: `${formatMoney(foodSpend)} spent so far — ${formatMoney(FOOD_BUDGET - foodSpend)} left of the £1,600 family budget. That's roughly ${formatMoney(Math.round((FOOD_BUDGET - foodSpend) / weeksRemaining))} per remaining week.`,
+        body: `${formatMoney(foodSpend)} spent so far — ${formatMoney(foodBudget - foodSpend)} left of your ${formatMoney(foodBudget)} monthly food budget. That's roughly ${formatMoney(Math.round((foodBudget - foodSpend) / weeksRemaining))} per remaining week.`,
       });
     }
 
@@ -516,16 +526,16 @@ function InsightsPage() {
           <div className="flex items-end justify-between">
             <div>
               <p className="text-2xl font-bold tabular-nums">{formatMoney(foodSpend)}</p>
-              <p className="text-xs text-muted-foreground">of £1,600 family budget</p>
+              <p className="text-xs text-muted-foreground">of {formatMoney(foodBudget)} monthly food budget</p>
             </div>
             <div className="text-right">
-              {foodSpend <= FOOD_BUDGET ? (
+              {foodSpend <= foodBudget ? (
                 <p className="text-sm font-semibold text-[var(--color-success)]">
-                  {formatMoney(FOOD_BUDGET - foodSpend)} remaining
+                  {formatMoney(foodBudget - foodSpend)} remaining
                 </p>
               ) : (
                 <p className="text-sm font-semibold text-destructive">
-                  {formatMoney(foodSpend - FOOD_BUDGET)} over
+                  {formatMoney(foodSpend - foodBudget)} over
                 </p>
               )}
               <p className="text-xs text-muted-foreground">
@@ -534,11 +544,11 @@ function InsightsPage() {
               </p>
             </div>
           </div>
-          <FoodProgressBar spend={foodSpend} budget={FOOD_BUDGET} />
+          <FoodProgressBar spend={foodSpend} budget={foodBudget} />
           <div className="flex justify-between text-[11px] text-muted-foreground">
             <span>£0</span>
-            <span>£800</span>
-            <span>£1,600</span>
+            <span>{formatMoney(foodBudget / 2)}</span>
+            <span>{formatMoney(foodBudget)}</span>
           </div>
         </div>
       </SectionCard>
