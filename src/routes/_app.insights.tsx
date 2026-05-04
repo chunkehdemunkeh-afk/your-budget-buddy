@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatMoney } from "@/lib/format";
 import { toDateOnly } from "@/lib/recurring";
+import { effectiveFoodBudget, type HouseholdComposition } from "@/lib/food-budget";
 import {
   TrendingUp,
   TrendingDown,
