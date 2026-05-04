@@ -265,7 +265,9 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
 
           <div className="flex items-center justify-between rounded-xl border border-border bg-card/60 px-4 py-3">
             <div>
-              <p className="text-sm font-medium">Adjust for weekends</p>
+              <p className="text-sm font-medium">
+                {kind === "income" ? "Adjust for weekends" : "Direct Debit"}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {kind === "income"
                   ? "Falls on weekend → paid the Friday before"

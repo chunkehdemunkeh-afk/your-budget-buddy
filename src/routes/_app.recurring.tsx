@@ -547,7 +547,7 @@ function RuleList({
                   )}
                   {r.weekend_adjust && (
                     <span className="ml-1.5 inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      weekday
+                      {r.kind === "outgoing" ? "direct debit" : "weekday"}
                     </span>
                   )}
                   {cat ? ` · ${cat.name}` : ""}
