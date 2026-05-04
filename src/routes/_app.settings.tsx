@@ -133,12 +133,23 @@ function SettingsPage() {
       return;
     }
     setSaving(true);
+    const overrideTrim = foodBudgetOverride.trim();
+    const overrideNum = overrideTrim === "" ? null : parseFloat(overrideTrim);
+    if (overrideNum != null && (isNaN(overrideNum) || overrideNum < 0)) {
+      setSaving(false);
+      toast.error("Food budget must be a positive number");
+      return;
+    }
     const { error } = await supabase
       .from("households")
       .update({
         name: householdName.trim() || "My Budget",
         opening_balance: bal,
         opening_balance_date: openingBalanceDate || null,
+        adults: Math.max(0, parseInt(adults, 10) || 0),
+        children: Math.max(0, parseInt(children, 10) || 0),
+        pets: Math.max(0, parseInt(pets, 10) || 0),
+        food_budget_override: overrideNum,
       })
       .eq("id", householdId);
     setSaving(false);
