@@ -450,9 +450,7 @@ function InsightsPage() {
   const totalOutgoing = byCategory.reduce((s, c) => s + c.total, 0);
   const visibleCats = showAllCats ? byCategory : byCategory.slice(0, 5);
 
-  const incomePctChange = pctChange(thisMonth.income, lastMonth.income);
   const outgoingPctChange = pctChange(thisMonth.outgoing, lastMonth.outgoing);
-  const netPctChange = pctChange(thisMonth.net, lastMonth.income - lastMonth.outgoing);
 
   return (
     <div className="mx-auto max-w-4xl px-4 pt-6 pb-10 md:px-8 md:pt-10">
