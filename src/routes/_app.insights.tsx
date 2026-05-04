@@ -111,14 +111,17 @@ function pctChange(current: number, previous: number): number | null {
 // ─── InsightsPage ───────────────────────────────────────────────────────────────
 
 function InsightsPage() {
-  const { user } = useAuth();
+  const { user, householdId } = useAuth();
   const [transactions, setTransactions] = useState<Tx[]>([]);
   const [categories, setCategories] = useState<Cat[]>([]);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [contributions, setContributions] = useState<Contrib[]>([]);
   const [recurringRules, setRecurringRules] = useState<RecurRule[]>([]);
+  const [household, setHousehold] = useState<HouseholdComposition | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAllCats, setShowAllCats] = useState(false);
+
+  const foodBudget = useMemo(() => effectiveFoodBudget(household), [household]);
 
   useEffect(() => {
     if (!user) return;
