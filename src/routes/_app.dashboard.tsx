@@ -477,6 +477,26 @@ function DashboardPage() {
   const monthLabel = new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
 
+  // Include today's projected recurring (not yet fired) so the balance card
+  // matches what the week-ahead section shows for today.
+  const displayBalance = useMemo(() => {
+    const todayStr = toLocalDate(new Date());
+    const firedToday = new Set<string>();
+    transactions.forEach((tx) => {
+      if (tx.occurred_on === todayStr && tx.recurring_rule_id) {
+        firedToday.add(`${tx.recurring_rule_id}|${todayStr}`);
+      }
+    });
+    let projectedNet = 0;
+    allRecurringRules.forEach((rule) => {
+      adjustedOccurrencesInRange(rule, todayStr, todayStr).forEach((ds) => {
+        if (firedToday.has(`${rule.id}|${ds}`)) return;
+        projectedNet += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
+      });
+    });
+    return currentBalance + projectedNet;
+  }, [currentBalance, transactions, allRecurringRules]);
+
   return (
     <div className="mx-auto max-w-6xl px-4 pt-6 pb-10 md:px-8 md:pt-10">
       <header className="mb-6 md:mb-8">
@@ -493,7 +513,7 @@ function DashboardPage() {
           Current balance
         </div>
         <p className="mt-2 text-4xl font-bold tracking-tight md:text-5xl">
-          {formatMoney(currentBalance)}
+          {formatMoney(displayBalance)}
         </p>
         <div className="mt-6 grid grid-cols-3 gap-3">
           <Stat label="This month in" value={incomeMonth} icon={<TrendingUp className="h-4 w-4" />} />
