@@ -815,7 +815,7 @@ function WeekAheadSection({
     });
 
     return result;
-  }, [startStr, endStr, weekOffset, transactions, allRecurring, catMap, todayStr, oneOffBills]);
+  }, [startStr, endStr, weekOffset, transactions, allRecurring, catMap, todayStr, oneOffBills, firedRuleDates]);
 
   // Opening / closing balances
   const { opening, closing } = useMemo(() => {
