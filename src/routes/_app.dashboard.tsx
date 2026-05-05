@@ -392,8 +392,7 @@ function DashboardPage() {
 
   const { incomeMonth, outgoingMonth, byCategory, monthlyTrend, recent } = useMemo(() => {
     const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthStartStr = monthStart.toISOString().slice(0, 10);
+    const monthStartStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
 
     const inMonth = transactions.filter((t) => t.occurred_on >= monthStartStr);
     const incomeMonth = inMonth
@@ -424,8 +423,8 @@ function DashboardPage() {
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const next = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
-      const startStr = d.toISOString().slice(0, 10);
-      const nextStr = next.toISOString().slice(0, 10);
+      const startStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+      const nextStr = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-01`;
       const slice = transactions.filter(
         (t) => t.occurred_on >= startStr && t.occurred_on < nextStr,
       );
