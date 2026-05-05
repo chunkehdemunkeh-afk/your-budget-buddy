@@ -775,19 +775,13 @@ function WeekAheadSection({
       }
     });
 
-    // Projected recurring rules for future days only
-    const futureFrom =
-      weekOffset > 0
-        ? startStr
-        : (() => {
-            const t = new Date(todayStr + "T12:00:00");
-            t.setDate(t.getDate() + 1);
-            return toLocalDate(t);
-          })();
+    // Projected recurring rules from today onwards (skip already-fired)
+    const futureFrom = weekOffset > 0 ? startStr : todayStr;
 
     if (futureFrom <= endStr) {
       allRecurring.forEach((rule) => {
         adjustedOccurrencesInRange(rule, futureFrom, endStr).forEach((ds) => {
+          if (firedRuleDates.has(`${rule.id}|${ds}`)) return;
           result[ds]?.push({
             name: rule.name,
             amount: Number(rule.amount),
