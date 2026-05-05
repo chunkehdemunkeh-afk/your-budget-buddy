@@ -412,13 +412,10 @@ function DashboardPage() {
         }
       });
       allRecurringRules.forEach((rule) => {
+        if (rule.kind !== "income") return;
         adjustedOccurrencesInRange(rule, todayStr, todayStr).forEach((ds) => {
           if (firedToday.has(`${rule.id}|${ds}`)) return;
-          if (rule.kind === "income") {
-            incomeMonth += Number(rule.amount);
-          } else {
-            outgoingMonth += Number(rule.amount);
-          }
+          incomeMonth += Number(rule.amount);
         });
       });
     }
