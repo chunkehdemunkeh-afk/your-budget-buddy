@@ -196,6 +196,7 @@ function computeWeekBalance(
   filteredTxs: BalanceTransaction[],
   allRecurring: AllRecurringRule[],
   todayStr: string,
+  firedRuleDates: Set<string>,
 ): { opening: number; closing: number } {
   const { startStr, endStr } = getWeekBounds(weekOffset);
 
@@ -210,7 +211,7 @@ function computeWeekBalance(
     );
     const opening = currentBalance - netToDate;
 
-    // Closing = opening + net of actual tx for the full week + projected recurring for future days
+    // Closing = opening + net of actual tx for the full week + projected recurring for today/future days
     const txInWeek = filteredTxs.filter(
       (tx) => tx.occurred_on >= startStr && tx.occurred_on <= endStr,
     );
@@ -221,12 +222,12 @@ function computeWeekBalance(
 
     let projectedNet = 0;
     if (weekOffset === 0) {
-      const tomorrow = new Date(todayStr + "T12:00:00");
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowStr = toLocalDate(tomorrow);
-      if (tomorrowStr <= endStr) {
+      // Project recurring items from today onwards. Skip any that have already
+      // posted a transaction for that date (avoids double counting once cron fires).
+      if (todayStr <= endStr) {
         allRecurring.forEach((rule) => {
-          adjustedOccurrencesInRange(rule, tomorrowStr, endStr).forEach(() => {
+          adjustedOccurrencesInRange(rule, todayStr, endStr).forEach((ds) => {
+            if (firedRuleDates.has(`${rule.id}|${ds}`)) return;
             projectedNet += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
           });
         });
@@ -237,7 +238,7 @@ function computeWeekBalance(
   }
 
   // Future week: chain from closing of week 0
-  const week0 = computeWeekBalance(0, currentBalance, filteredTxs, allRecurring, todayStr);
+  const week0 = computeWeekBalance(0, currentBalance, filteredTxs, allRecurring, todayStr, firedRuleDates);
   let balance = week0.closing;
   for (let w = 1; w < weekOffset; w++) {
     const { startStr: ws, endStr: we } = getWeekBounds(w);
