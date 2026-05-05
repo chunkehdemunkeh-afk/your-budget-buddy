@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { formatMoney } from "@/lib/format";
-import { toDateOnly } from "@/lib/recurring";
+import { toDateOnly, adjustedOccurrencesInRange } from "@/lib/recurring";
 import { effectiveFoodBudget, type HouseholdComposition } from "@/lib/food-budget";
 import {
   TrendingUp,
@@ -49,6 +49,7 @@ interface Tx {
   category_id: string | null;
   note: string | null;
   source: string | null;
+  recurring_rule_id: string | null;
 }
 
 interface Cat {
@@ -80,6 +81,8 @@ interface RecurRule {
   amount: number;
   frequency: "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly";
   kind: "income" | "outgoing" | "shopping";
+  next_run: string;
+  weekend_adjust: boolean;
 }
 
 // ─── Constants & helpers ────────────────────────────────────────────────────────
@@ -136,7 +139,7 @@ function InsightsPage() {
       const [txRes, catRes, goalRes, contribRes, recRes, hhRes] = await Promise.all([
         supabase
           .from("transactions")
-          .select("id, kind, amount, occurred_on, category_id, note, source")
+          .select("id, kind, amount, occurred_on, category_id, note, source, recurring_rule_id")
           .gte("occurred_on", sixMonthsAgoStr)
           .order("occurred_on", { ascending: false })
           .limit(1000),
@@ -145,7 +148,7 @@ function InsightsPage() {
         supabase.from("goal_contributions").select("goal_id, amount, occurred_on"),
         supabase
           .from("recurring_rules")
-          .select("id, name, amount, frequency, kind")
+          .select("id, name, amount, frequency, kind, next_run, weekend_adjust")
           .eq("paused", false),
         supabase
           .from("households")
@@ -175,10 +178,15 @@ function InsightsPage() {
   const { thisMonth, lastMonth, byCategory, monthlyTrend } = useMemo(() => {
     const now = new Date();
     const monthStartStr = toDateOnly(new Date(now.getFullYear(), now.getMonth(), 1));
+    const nextMonthStartStr = toDateOnly(new Date(now.getFullYear(), now.getMonth() + 1, 1));
     const lastMonthStartStr = toDateOnly(new Date(now.getFullYear(), now.getMonth() - 1, 1));
     const lastMonthEndStr = toDateOnly(new Date(now.getFullYear(), now.getMonth(), 0));
+    const todayStr = toDateOnly(new Date());
 
-    const thisTxs = transactions.filter((t) => t.occurred_on >= monthStartStr);
+    // Bound to this calendar month only — excludes future-month transactions entered in advance.
+    const thisTxs = transactions.filter(
+      (t) => t.occurred_on >= monthStartStr && t.occurred_on < nextMonthStartStr,
+    );
     const lastTxs = transactions.filter(
       (t) => t.occurred_on >= lastMonthStartStr && t.occurred_on <= lastMonthEndStr,
     );
@@ -188,10 +196,25 @@ function InsightsPage() {
         .filter((t) => (kind === "income" ? t.kind === "income" : t.kind !== "income"))
         .reduce((s, t) => s + Number(t.amount), 0);
 
-    const thisIncome = sum(thisTxs, "income");
+    let thisIncome = sum(thisTxs, "income");
     const thisOutgoing = sum(thisTxs, "outgoing");
     const lastIncome = sum(lastTxs, "income");
     const lastOutgoing = sum(lastTxs, "outgoing");
+
+    // Project unfired recurring income for the whole month to date.
+    const firedInMonth = new Set<string>();
+    thisTxs.forEach((tx) => {
+      if (tx.occurred_on >= monthStartStr && tx.occurred_on <= todayStr && tx.recurring_rule_id) {
+        firedInMonth.add(`${tx.recurring_rule_id}|${tx.occurred_on}`);
+      }
+    });
+    recurringRules.forEach((rule) => {
+      if (rule.kind !== "income") return;
+      adjustedOccurrencesInRange(rule, monthStartStr, todayStr).forEach((ds) => {
+        if (firedInMonth.has(`${rule.id}|${ds}`)) return;
+        thisIncome += Number(rule.amount);
+      });
+    });
 
     // Category breakdown this month
     const catTotals = new Map<
@@ -238,7 +261,7 @@ function InsightsPage() {
       byCategory,
       monthlyTrend: trend,
     };
-  }, [transactions, catMap]);
+  }, [transactions, catMap, recurringRules]);
 
   const foodSpend = useMemo(() => {
     const now = new Date();
