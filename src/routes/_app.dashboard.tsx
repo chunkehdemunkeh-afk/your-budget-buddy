@@ -50,6 +50,7 @@ interface Tx {
   note: string | null;
   source: string | null;
   category_id: string | null;
+  recurring_rule_id: string | null;
 }
 interface Cat {
   id: string;
@@ -195,6 +196,7 @@ function computeWeekBalance(
   filteredTxs: BalanceTransaction[],
   allRecurring: AllRecurringRule[],
   todayStr: string,
+  firedRuleDates: Set<string>,
 ): { opening: number; closing: number } {
   const { startStr, endStr } = getWeekBounds(weekOffset);
 
@@ -209,7 +211,7 @@ function computeWeekBalance(
     );
     const opening = currentBalance - netToDate;
 
-    // Closing = opening + net of actual tx for the full week + projected recurring for future days
+    // Closing = opening + net of actual tx for the full week + projected recurring for today/future days
     const txInWeek = filteredTxs.filter(
       (tx) => tx.occurred_on >= startStr && tx.occurred_on <= endStr,
     );
@@ -220,12 +222,12 @@ function computeWeekBalance(
 
     let projectedNet = 0;
     if (weekOffset === 0) {
-      const tomorrow = new Date(todayStr + "T12:00:00");
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const tomorrowStr = toLocalDate(tomorrow);
-      if (tomorrowStr <= endStr) {
+      // Project recurring items from today onwards. Skip any that have already
+      // posted a transaction for that date (avoids double counting once cron fires).
+      if (todayStr <= endStr) {
         allRecurring.forEach((rule) => {
-          adjustedOccurrencesInRange(rule, tomorrowStr, endStr).forEach(() => {
+          adjustedOccurrencesInRange(rule, todayStr, endStr).forEach((ds) => {
+            if (firedRuleDates.has(`${rule.id}|${ds}`)) return;
             projectedNet += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
           });
         });
@@ -236,7 +238,7 @@ function computeWeekBalance(
   }
 
   // Future week: chain from closing of week 0
-  const week0 = computeWeekBalance(0, currentBalance, filteredTxs, allRecurring, todayStr);
+  const week0 = computeWeekBalance(0, currentBalance, filteredTxs, allRecurring, todayStr, firedRuleDates);
   let balance = week0.closing;
   for (let w = 1; w < weekOffset; w++) {
     const { startStr: ws, endStr: we } = getWeekBounds(w);
@@ -291,7 +293,7 @@ function DashboardPage() {
         await Promise.all([
           supabase
             .from("transactions")
-            .select("id, kind, amount, occurred_on, note, source, category_id")
+            .select("id, kind, amount, occurred_on, note, source, category_id, recurring_rule_id")
             .gte("occurred_on", sixMonthsAgoStr)
             .order("occurred_on", { ascending: false })
             .limit(500),
@@ -745,6 +747,15 @@ function WeekAheadSection({
   const { startStr, endStr, label } = getWeekBounds(weekOffset);
   const todayStr = toLocalDate(new Date());
 
+  // Set of "ruleId|date" pairs where a recurring transaction has already posted
+  const firedRuleDates = useMemo(() => {
+    const s = new Set<string>();
+    transactions.forEach((tx) => {
+      if (tx.recurring_rule_id) s.add(`${tx.recurring_rule_id}|${tx.occurred_on}`);
+    });
+    return s;
+  }, [transactions]);
+
   // Build 7 day slots
   const days: string[] = [];
   {
@@ -773,19 +784,13 @@ function WeekAheadSection({
       }
     });
 
-    // Projected recurring rules for future days only
-    const futureFrom =
-      weekOffset > 0
-        ? startStr
-        : (() => {
-            const t = new Date(todayStr + "T12:00:00");
-            t.setDate(t.getDate() + 1);
-            return toLocalDate(t);
-          })();
+    // Projected recurring rules from today onwards (skip already-fired)
+    const futureFrom = weekOffset > 0 ? startStr : todayStr;
 
     if (futureFrom <= endStr) {
       allRecurring.forEach((rule) => {
         adjustedOccurrencesInRange(rule, futureFrom, endStr).forEach((ds) => {
+          if (firedRuleDates.has(`${rule.id}|${ds}`)) return;
           result[ds]?.push({
             name: rule.name,
             amount: Number(rule.amount),
@@ -810,30 +815,23 @@ function WeekAheadSection({
     });
 
     return result;
-  }, [startStr, endStr, weekOffset, transactions, allRecurring, catMap, todayStr, oneOffBills]);
+  }, [startStr, endStr, weekOffset, transactions, allRecurring, catMap, todayStr, oneOffBills, firedRuleDates]);
 
   // Opening / closing balances
   const { opening, closing } = useMemo(() => {
     const filtered = openingBalanceDate
       ? allTxs.filter((tx) => tx.occurred_on >= openingBalanceDate)
       : allTxs;
-    const base = computeWeekBalance(weekOffset, currentBalance, filtered, allRecurring, todayStr);
+    const base = computeWeekBalance(weekOffset, currentBalance, filtered, allRecurring, todayStr, firedRuleDates);
 
-    // Include unpaid one-off bills due in the future portion of this week
-    const futureFrom =
-      weekOffset > 0
-        ? startStr
-        : (() => {
-            const t = new Date(todayStr + "T12:00:00");
-            t.setDate(t.getDate() + 1);
-            return toLocalDate(t);
-          })();
+    // Include unpaid one-off bills due from today onwards in this week
+    const futureFrom = weekOffset > 0 ? startStr : todayStr;
     const billAdj = oneOffBills
       .filter((b) => b.due_date >= futureFrom && b.due_date <= endStr)
       .reduce((s, b) => s - Number(b.amount), 0);
 
     return { opening: base.opening, closing: base.closing + billAdj };
-  }, [weekOffset, currentBalance, allTxs, allRecurring, openingBalanceDate, todayStr, oneOffBills, startStr, endStr]);
+  }, [weekOffset, currentBalance, allTxs, allRecurring, openingBalanceDate, todayStr, oneOffBills, startStr, endStr, firedRuleDates]);
 
   const weekNet = closing - opening;
 
