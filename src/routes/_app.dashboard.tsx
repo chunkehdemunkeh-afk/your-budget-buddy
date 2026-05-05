@@ -50,6 +50,7 @@ interface Tx {
   note: string | null;
   source: string | null;
   category_id: string | null;
+  recurring_rule_id: string | null;
 }
 interface Cat {
   id: string;
