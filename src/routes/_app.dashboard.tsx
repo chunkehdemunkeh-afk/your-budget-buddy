@@ -822,23 +822,16 @@ function WeekAheadSection({
     const filtered = openingBalanceDate
       ? allTxs.filter((tx) => tx.occurred_on >= openingBalanceDate)
       : allTxs;
-    const base = computeWeekBalance(weekOffset, currentBalance, filtered, allRecurring, todayStr);
+    const base = computeWeekBalance(weekOffset, currentBalance, filtered, allRecurring, todayStr, firedRuleDates);
 
-    // Include unpaid one-off bills due in the future portion of this week
-    const futureFrom =
-      weekOffset > 0
-        ? startStr
-        : (() => {
-            const t = new Date(todayStr + "T12:00:00");
-            t.setDate(t.getDate() + 1);
-            return toLocalDate(t);
-          })();
+    // Include unpaid one-off bills due from today onwards in this week
+    const futureFrom = weekOffset > 0 ? startStr : todayStr;
     const billAdj = oneOffBills
       .filter((b) => b.due_date >= futureFrom && b.due_date <= endStr)
       .reduce((s, b) => s - Number(b.amount), 0);
 
     return { opening: base.opening, closing: base.closing + billAdj };
-  }, [weekOffset, currentBalance, allTxs, allRecurring, openingBalanceDate, todayStr, oneOffBills, startStr, endStr]);
+  }, [weekOffset, currentBalance, allTxs, allRecurring, openingBalanceDate, todayStr, oneOffBills, startStr, endStr, firedRuleDates]);
 
   const weekNet = closing - opening;
 
