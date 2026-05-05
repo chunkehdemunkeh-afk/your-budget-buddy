@@ -64,3 +64,59 @@ export function adjustForWeekend(dateStr: string, kind: string): string {
   }
   return toDateOnly(d);
 }
+
+function stepByFrequency(dateStr: string, frequency: string, direction: 1 | -1): string {
+  const d = new Date(dateStr + "T12:00:00");
+  switch (frequency) {
+    case "weekly": d.setDate(d.getDate() + 7 * direction); break;
+    case "fortnightly": d.setDate(d.getDate() + 14 * direction); break;
+    case "fourweekly": d.setDate(d.getDate() + 28 * direction); break;
+    case "monthly": d.setMonth(d.getMonth() + direction); break;
+    case "yearly": d.setFullYear(d.getFullYear() + direction); break;
+    default: d.setDate(d.getDate() + direction);
+  }
+  return toDateOnly(d);
+}
+
+export function occurrencesInRange(
+  nextRun: string,
+  frequency: string,
+  startStr: string,
+  endStr: string,
+): string[] {
+  let cur = nextRun;
+  for (let i = 0; i < 500; i++) {
+    const prev = stepByFrequency(cur, frequency, -1);
+    if (prev < startStr) break;
+    cur = prev;
+  }
+  for (let i = 0; i < 500 && cur < startStr; i++) {
+    cur = stepByFrequency(cur, frequency, 1);
+  }
+  const results: string[] = [];
+  for (let i = 0; i < 500 && cur <= endStr; i++) {
+    if (cur >= startStr) results.push(cur);
+    cur = stepByFrequency(cur, frequency, 1);
+  }
+  return results;
+}
+
+// Returns occurrences of a rule within [startStr, endStr], applying weekend
+// adjustment when enabled. Expands the search 2 days before startStr so that
+// payments scheduled on the preceding Sat/Sun are correctly included.
+export function adjustedOccurrencesInRange(
+  rule: { next_run: string; frequency: string; kind: string; weekend_adjust: boolean },
+  startStr: string,
+  endStr: string,
+): string[] {
+  if (!rule.weekend_adjust) {
+    return occurrencesInRange(rule.next_run, rule.frequency, startStr, endStr);
+  }
+  const expanded = new Date(startStr + "T12:00:00");
+  expanded.setDate(expanded.getDate() - 2);
+  const expandedStart = toDateOnly(expanded);
+  const adjusted = occurrencesInRange(rule.next_run, rule.frequency, expandedStart, endStr)
+    .map((ds) => adjustForWeekend(ds, rule.kind))
+    .filter((ds) => ds >= startStr && ds <= endStr);
+  return [...new Set(adjusted)];
+}

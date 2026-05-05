@@ -28,7 +28,7 @@ import {
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { adjustForWeekend } from "@/lib/recurring";
+import { adjustedOccurrencesInRange } from "@/lib/recurring";
 
 export const Route = createFileRoute("/_app/dashboard")({
   head: () => ({
@@ -119,76 +119,6 @@ function getWeekBounds(offset: number) {
   return { startStr, endStr, label };
 }
 
-function stepByFrequency(dateStr: string, frequency: string, direction: 1 | -1): string {
-  const d = new Date(dateStr + "T12:00:00");
-  switch (frequency) {
-    case "weekly":
-      d.setDate(d.getDate() + 7 * direction);
-      break;
-    case "fortnightly":
-      d.setDate(d.getDate() + 14 * direction);
-      break;
-    case "fourweekly":
-      d.setDate(d.getDate() + 28 * direction);
-      break;
-    case "monthly":
-      d.setMonth(d.getMonth() + direction);
-      break;
-    case "yearly":
-      d.setFullYear(d.getFullYear() + direction);
-      break;
-    default:
-      // Unknown frequency — advance by 1 day as a safety fallback so loops always terminate
-      d.setDate(d.getDate() + direction);
-  }
-  return toLocalDate(d);
-}
-
-function occurrencesInRange(
-  nextRun: string,
-  frequency: string,
-  startStr: string,
-  endStr: string,
-): string[] {
-  let cur = nextRun;
-  // Walk backward until prev would fall before startStr
-  for (let i = 0; i < 500; i++) {
-    const prev = stepByFrequency(cur, frequency, -1);
-    if (prev < startStr) break;
-    cur = prev;
-  }
-  // Advance if we're still before startStr
-  for (let i = 0; i < 500 && cur < startStr; i++) {
-    cur = stepByFrequency(cur, frequency, 1);
-  }
-  const results: string[] = [];
-  for (let i = 0; i < 500 && cur <= endStr; i++) {
-    if (cur >= startStr) results.push(cur);
-    cur = stepByFrequency(cur, frequency, 1);
-  }
-  return results;
-}
-
-// Returns occurrences of a rule within [startStr, endStr], applying weekend
-// adjustment when enabled. Expands the search 2 days before startStr so that
-// outgoing payments scheduled on the preceding Sat/Sun (which shift to Monday)
-// are correctly included in the week they are actually paid.
-function adjustedOccurrencesInRange(
-  rule: AllRecurringRule,
-  startStr: string,
-  endStr: string,
-): string[] {
-  if (!rule.weekend_adjust) {
-    return occurrencesInRange(rule.next_run, rule.frequency, startStr, endStr);
-  }
-  const expandedStartDate = new Date(startStr + "T12:00:00");
-  expandedStartDate.setDate(expandedStartDate.getDate() - 2);
-  const expandedStart = toLocalDate(expandedStartDate);
-  const adjusted = occurrencesInRange(rule.next_run, rule.frequency, expandedStart, endStr)
-    .map((ds) => adjustForWeekend(ds, rule.kind))
-    .filter((ds) => ds >= startStr && ds <= endStr);
-  return [...new Set(adjusted)];
-}
 
 function computeWeekBalance(
   weekOffset: number,
@@ -393,32 +323,36 @@ function DashboardPage() {
   const { incomeMonth, outgoingMonth, byCategory, monthlyTrend, recent } = useMemo(() => {
     const now = new Date();
     const monthStartStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const nextMonthStartStr = toLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 1));
     const todayStr = toLocalDate(now);
 
-    const inMonth = transactions.filter((t) => t.occurred_on >= monthStartStr);
+    // Bound to this calendar month only — excludes future-month transactions entered in advance.
+    const inMonth = transactions.filter(
+      (t) => t.occurred_on >= monthStartStr && t.occurred_on < nextMonthStartStr,
+    );
     let incomeMonth = inMonth
       .filter((t) => t.kind === "income")
       .reduce((s, t) => s + Number(t.amount), 0);
-    let outgoingMonth = inMonth
+    const outgoingMonth = inMonth
       .filter((t) => t.kind !== "income")
       .reduce((s, t) => s + Number(t.amount), 0);
 
-    // Add today's projected recurring that hasn't fired yet, matching displayBalance.
-    if (todayStr >= monthStartStr) {
-      const firedToday = new Set<string>();
-      transactions.forEach((tx) => {
-        if (tx.occurred_on === todayStr && tx.recurring_rule_id) {
-          firedToday.add(`${tx.recurring_rule_id}|${todayStr}`);
-        }
+    // Project unfired recurring income for the whole month to date.
+    // Walks backward from next_run to find occurrences even when the cron has
+    // already advanced next_run past the due date without creating a transaction.
+    const firedInMonth = new Set<string>();
+    transactions.forEach((tx) => {
+      if (tx.occurred_on >= monthStartStr && tx.occurred_on <= todayStr && tx.recurring_rule_id) {
+        firedInMonth.add(`${tx.recurring_rule_id}|${tx.occurred_on}`);
+      }
+    });
+    allRecurringRules.forEach((rule) => {
+      if (rule.kind !== "income") return;
+      adjustedOccurrencesInRange(rule, monthStartStr, todayStr).forEach((ds) => {
+        if (firedInMonth.has(`${rule.id}|${ds}`)) return;
+        incomeMonth += Number(rule.amount);
       });
-      allRecurringRules.forEach((rule) => {
-        if (rule.kind !== "income") return;
-        adjustedOccurrencesInRange(rule, todayStr, todayStr).forEach((ds) => {
-          if (firedToday.has(`${rule.id}|${ds}`)) return;
-          incomeMonth += Number(rule.amount);
-        });
-      });
-    }
+    });
 
     const catMap = new Map(categories.map((c) => [c.id, c]));
     const catTotals = new Map<string, { name: string; color: string; total: number }>();
