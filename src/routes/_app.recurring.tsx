@@ -125,6 +125,14 @@ function RecurringPage() {
     if (error) toast.error(error.message);
   }
 
+  async function toggleWeekendAdjust(rule: RecurringRule) {
+    const { error } = await supabase
+      .from("recurring_rules")
+      .update({ weekend_adjust: !rule.weekend_adjust })
+      .eq("id", rule.id);
+    if (error) toast.error(error.message);
+  }
+
   async function runNow(rule: RecurringRule) {
     if (!user || !householdId) return;
     const today = toDateOnly(new Date());
@@ -267,6 +275,7 @@ function RecurringPage() {
             onEdit={openEdit}
             onDelete={(r) => setConfirmDelete(r)}
             onTogglePaused={togglePaused}
+            onToggleWeekendAdjust={toggleWeekendAdjust}
             onRunNow={runNow}
           />
         </TabsContent>
@@ -286,6 +295,7 @@ function RecurringPage() {
             onEdit={openEdit}
             onDelete={(r) => setConfirmDelete(r)}
             onTogglePaused={togglePaused}
+            onToggleWeekendAdjust={toggleWeekendAdjust}
             onRunNow={runNow}
           />
         </TabsContent>
@@ -483,6 +493,7 @@ function RuleList({
   onEdit,
   onDelete,
   onTogglePaused,
+  onToggleWeekendAdjust,
   onRunNow,
 }: {
   rules: RecurringRule[];
@@ -492,6 +503,7 @@ function RuleList({
   onEdit: (r: RecurringRule) => void;
   onDelete: (r: RecurringRule) => void;
   onTogglePaused: (r: RecurringRule) => void;
+  onToggleWeekendAdjust: (r: RecurringRule) => void;
   onRunNow: (r: RecurringRule) => void;
 }) {
   if (loading) return <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>;
@@ -555,9 +567,17 @@ function RuleList({
               </div>
             </div>
             <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3">
-              <div className="flex items-center gap-2 text-xs">
-                <Switch checked={!r.paused} onCheckedChange={() => onTogglePaused(r)} />
-                <span className="text-muted-foreground">{r.paused ? "Paused" : "Active"}</span>
+              <div className="flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <Switch checked={!r.paused} onCheckedChange={() => onTogglePaused(r)} />
+                  <span className="text-muted-foreground">{r.paused ? "Paused" : "Active"}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch checked={r.weekend_adjust} onCheckedChange={() => onToggleWeekendAdjust(r)} />
+                  <span className="text-muted-foreground">
+                    {r.kind === "income" ? "Weekday" : "Direct Debit"}
+                  </span>
+                </div>
               </div>
               <div className="flex items-center gap-1">
                 <Button

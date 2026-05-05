@@ -83,14 +83,14 @@ New tables must be created via the **Supabase SQL editor** (Dashboard → SQL Ed
 
 ## Domain rules
 
-- **Food shopping** = `kind === "shopping"` transactions OR `kind === "outgoing"` transactions whose category name contains "food shopping" (case-insensitive). Family budget is £1,600/month (household of 6).
+- **Food shopping** = `kind === "shopping"` transactions OR `kind === "outgoing"` transactions whose category name contains "food" (case-insensitive, so matches "Food", "Food Shopping", "Food & Drink", etc.). Family budget is £1,600/month (household of 6).
 - **One-off bill payment** — marking a `one_off_bills` record as paid always inserts a `transactions` row (`kind: "outgoing"`, `occurred_on: today`). Never just flip `paid` without creating the transaction.
 - **Balance excludes future transactions** — `calculateCurrentBalance` ignores transactions with `occurred_on > today`. Don't rely on future-dated transactions to affect the displayed balance.
 
 ## Key lib utilities
 
 - `src/lib/balance.ts` — `calculateCurrentBalance({ openingBalance, openingBalanceDate, transactions, asOfDate? })` computes the true running balance, filtering out transactions before `openingBalanceDate` AND after `asOfDate` (defaults to today — future-dated transactions are excluded). Used on the dashboard.
-- `src/lib/recurring.ts` — frequency helpers. **Always use `displayNextRun(rule.next_run, rule.frequency)` for display** — the raw `next_run` in the DB can be stale if the cron hasn't fired. If the rule has `weekend_adjust`, also pipe the result through `adjustForWeekend(dateStr, rule.kind)` before displaying. `toDateOnly(date)` converts a `Date` to a local `YYYY-MM-DD` string safely (avoids BST/UTC midnight issues). `adjustForWeekend(dateStr, kind)` shifts weekend dates to the nearest weekday.
+- `src/lib/recurring.ts` — frequency helpers. **Always use `displayNextRun(rule.next_run, rule.frequency)` for display** — the raw `next_run` in the DB can be stale if the cron hasn't fired. If the rule has `weekend_adjust`, also pipe the result through `adjustForWeekend(dateStr, rule.kind)` before displaying. `toDateOnly(date)` converts a `Date` to a local `YYYY-MM-DD` string safely (avoids BST/UTC midnight issues). `adjustForWeekend(dateStr, kind)` shifts weekend dates to the nearest weekday. **For computing all occurrences within a date range, use `occurrencesInRange(nextRun, frequency, startStr, endStr)` or `adjustedOccurrencesInRange(rule, startStr, endStr)` (handles weekend_adjust, expands search 2 days early so Mon-shifted payments aren't missed)** — do not re-implement this logic inline.
 - `src/lib/format.ts` — `formatMoney()`, `formatShortDate()`
 - `src/hooks/useCategories.ts` — `useCategories()` hook; returns `{ categories, loading }` with a Realtime subscription. Use this instead of fetching categories manually inside pages.
 

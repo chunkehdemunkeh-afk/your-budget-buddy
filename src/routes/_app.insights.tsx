@@ -272,7 +272,7 @@ function InsightsPage() {
         if (t.kind === "shopping") return true;
         if (t.kind === "outgoing") {
           const cat = t.category_id ? catMap.get(t.category_id) : null;
-          return (cat?.name?.toLowerCase() ?? "").includes("food shopping");
+          return (cat?.name?.toLowerCase() ?? "").includes("food");
         }
         return false;
       })
@@ -398,28 +398,31 @@ function InsightsPage() {
         });
       });
 
-    // Net surplus
-    if (thisMonth.net < 0) {
+    // Net surplus — compare expected monthly income vs expected monthly outgoings
+    // (avoids false alarms early in the month when only partial income has landed)
+    const expectedNet = monthlyRecurringIn - monthlyRecurringOut;
+    const expectedSurplusRate = monthlyRecurringIn > 0 ? expectedNet / monthlyRecurringIn : 0;
+    if (monthlyRecurringIn > 0 && expectedNet < 0) {
       tips.push({
         icon: <AlertTriangle className="h-4 w-4" />,
         type: "warning",
-        title: "Spending exceeds income",
-        body: `This month you've spent ${formatMoney(Math.abs(thisMonth.net))} more than you've earned. Review your outgoings — your largest category is ${byCategory[0]?.name ?? "unknown"} at ${formatMoney(byCategory[0]?.total ?? 0)}.`,
+        title: "Income may not cover outgoings",
+        body: `Your recurring outgoings (${formatMoney(Math.round(monthlyRecurringOut))}/month) exceed expected income (${formatMoney(Math.round(monthlyRecurringIn))}/month). Review your recurring rules to see what can be paused or cancelled.`,
       });
-    } else if (thisMonth.income > 0 && thisMonth.net / thisMonth.income < 0.1) {
+    } else if (monthlyRecurringIn > 0 && expectedSurplusRate < 0.1) {
       const top = byCategory[0];
       tips.push({
         icon: <TrendingDown className="h-4 w-4" />,
         type: "info",
         title: "Low monthly surplus",
-        body: `Your surplus is ${((thisMonth.net / thisMonth.income) * 100).toFixed(0)}% of income this month.${top ? ` Your largest spend is ${top.name} at ${formatMoney(top.total)}.` : ""} Even small savings add up over time.`,
+        body: `Expected surplus is ${(expectedSurplusRate * 100).toFixed(0)}% of monthly income.${top ? ` Your largest spend this month is ${top.name} at ${formatMoney(top.total)}.` : ""} Even small savings add up over time.`,
       });
-    } else if (thisMonth.income > 0 && thisMonth.net / thisMonth.income >= 0.2) {
+    } else if (monthlyRecurringIn > 0 && expectedSurplusRate >= 0.2) {
       tips.push({
         icon: <CheckCircle2 className="h-4 w-4" />,
         type: "success",
         title: "Strong savings rate",
-        body: `You're saving ${((thisMonth.net / thisMonth.income) * 100).toFixed(0)}% of your income this month — well above the recommended 10–15%. Keep it up.`,
+        body: `Expected surplus is ${(expectedSurplusRate * 100).toFixed(0)}% of monthly income — well above the recommended 10–15%. Keep it up.`,
       });
     }
 
@@ -440,13 +443,13 @@ function InsightsPage() {
       });
     }
 
-    // High recurring costs
-    if (thisMonth.income > 0 && monthlyRecurringOut / thisMonth.income > 0.5) {
+    // High recurring costs — compare against expected monthly income, not time-of-month actuals
+    if (monthlyRecurringIn > 0 && monthlyRecurringOut / monthlyRecurringIn > 0.5) {
       tips.push({
         icon: <Repeat className="h-4 w-4" />,
         type: "info",
         title: "High fixed costs",
-        body: `Recurring bills account for ${((monthlyRecurringOut / thisMonth.income) * 100).toFixed(0)}% of income (${formatMoney(Math.round(monthlyRecurringOut))}/month). Review the Recurring tab for anything to pause or cancel.`,
+        body: `Recurring bills account for ${((monthlyRecurringOut / monthlyRecurringIn) * 100).toFixed(0)}% of expected monthly income (${formatMoney(Math.round(monthlyRecurringOut))}/month). Review the Recurring tab for anything to pause or cancel.`,
       });
     }
 
