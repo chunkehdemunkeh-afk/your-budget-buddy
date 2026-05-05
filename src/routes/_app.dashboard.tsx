@@ -292,7 +292,7 @@ function DashboardPage() {
         await Promise.all([
           supabase
             .from("transactions")
-            .select("id, kind, amount, occurred_on, note, source, category_id")
+            .select("id, kind, amount, occurred_on, note, source, category_id, recurring_rule_id")
             .gte("occurred_on", sixMonthsAgoStr)
             .order("occurred_on", { ascending: false })
             .limit(500),
