@@ -747,6 +747,15 @@ function WeekAheadSection({
   const { startStr, endStr, label } = getWeekBounds(weekOffset);
   const todayStr = toLocalDate(new Date());
 
+  // Set of "ruleId|date" pairs where a recurring transaction has already posted
+  const firedRuleDates = useMemo(() => {
+    const s = new Set<string>();
+    transactions.forEach((tx) => {
+      if (tx.recurring_rule_id) s.add(`${tx.recurring_rule_id}|${tx.occurred_on}`);
+    });
+    return s;
+  }, [transactions]);
+
   // Build 7 day slots
   const days: string[] = [];
   {
