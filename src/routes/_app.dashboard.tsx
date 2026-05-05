@@ -393,14 +393,32 @@ function DashboardPage() {
   const { incomeMonth, outgoingMonth, byCategory, monthlyTrend, recent } = useMemo(() => {
     const now = new Date();
     const monthStartStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const todayStr = toLocalDate(now);
 
     const inMonth = transactions.filter((t) => t.occurred_on >= monthStartStr);
-    const incomeMonth = inMonth
+    let incomeMonth = inMonth
       .filter((t) => t.kind === "income")
       .reduce((s, t) => s + Number(t.amount), 0);
-    const outgoingMonth = inMonth
+    let outgoingMonth = inMonth
       .filter((t) => t.kind !== "income")
       .reduce((s, t) => s + Number(t.amount), 0);
+
+    // Add today's projected recurring that hasn't fired yet, matching displayBalance.
+    if (todayStr >= monthStartStr) {
+      const firedToday = new Set<string>();
+      transactions.forEach((tx) => {
+        if (tx.occurred_on === todayStr && tx.recurring_rule_id) {
+          firedToday.add(`${tx.recurring_rule_id}|${todayStr}`);
+        }
+      });
+      allRecurringRules.forEach((rule) => {
+        if (rule.kind !== "income") return;
+        adjustedOccurrencesInRange(rule, todayStr, todayStr).forEach((ds) => {
+          if (firedToday.has(`${rule.id}|${ds}`)) return;
+          incomeMonth += Number(rule.amount);
+        });
+      });
+    }
 
     const catMap = new Map(categories.map((c) => [c.id, c]));
     const catTotals = new Map<string, { name: string; color: string; total: number }>();
@@ -439,7 +457,7 @@ function DashboardPage() {
 
     const recent = transactions.slice(0, 6);
     return { incomeMonth, outgoingMonth, byCategory, monthlyTrend: trend, recent };
-  }, [transactions, categories]);
+  }, [transactions, categories, allRecurringRules]);
 
   async function handleDelete(id: string) {
     const prev = transactions;
