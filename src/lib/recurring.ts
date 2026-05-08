@@ -104,13 +104,18 @@ export function occurrencesInRange(
 // Returns occurrences of a rule within [startStr, endStr], applying weekend
 // adjustment when enabled. Expands the search 2 days before startStr so that
 // payments scheduled on the preceding Sat/Sun are correctly included.
+// Uses start_date as a hard lower bound so rules with a future start never
+// project occurrences into the current month (the backward walk from next_run
+// can otherwise land in the current month when next_run is in a future month).
 export function adjustedOccurrencesInRange(
-  rule: { next_run: string; frequency: string; kind: string; weekend_adjust: boolean },
+  rule: { next_run: string; frequency: string; kind: string; weekend_adjust: boolean; start_date?: string },
   startStr: string,
   endStr: string,
 ): string[] {
+  const minDate = rule.start_date;
   if (!rule.weekend_adjust) {
-    return occurrencesInRange(rule.next_run, rule.frequency, startStr, endStr);
+    const results = occurrencesInRange(rule.next_run, rule.frequency, startStr, endStr);
+    return minDate ? results.filter((d) => d >= minDate) : results;
   }
   const expanded = new Date(startStr + "T12:00:00");
   expanded.setDate(expanded.getDate() - 2);
@@ -118,5 +123,6 @@ export function adjustedOccurrencesInRange(
   const adjusted = occurrencesInRange(rule.next_run, rule.frequency, expandedStart, endStr)
     .map((ds) => adjustForWeekend(ds, rule.kind))
     .filter((ds) => ds >= startStr && ds <= endStr);
-  return [...new Set(adjusted)];
+  const deduped = [...new Set(adjusted)];
+  return minDate ? deduped.filter((d) => d >= minDate) : deduped;
 }

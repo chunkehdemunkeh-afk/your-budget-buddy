@@ -76,6 +76,7 @@ interface AllRecurringRule {
   name: string;
   amount: number;
   next_run: string;
+  start_date: string;
   frequency: "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly";
   kind: "income" | "outgoing" | "shopping";
   weekend_adjust: boolean;
@@ -248,7 +249,7 @@ function DashboardPage() {
           supabase.from("transactions").select("kind, amount, occurred_on"),
           supabase
             .from("recurring_rules")
-            .select("id, name, amount, next_run, frequency, kind, weekend_adjust")
+            .select("id, name, amount, next_run, start_date, frequency, kind, weekend_adjust")
             .eq("paused", false)
             .order("next_run", { ascending: true }),
           supabase

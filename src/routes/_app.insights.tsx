@@ -82,6 +82,7 @@ interface RecurRule {
   frequency: "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly";
   kind: "income" | "outgoing" | "shopping";
   next_run: string;
+  start_date: string;
   weekend_adjust: boolean;
 }
 
@@ -148,7 +149,7 @@ function InsightsPage() {
         supabase.from("goal_contributions").select("goal_id, amount, occurred_on"),
         supabase
           .from("recurring_rules")
-          .select("id, name, amount, frequency, kind, next_run, weekend_adjust")
+          .select("id, name, amount, frequency, kind, next_run, start_date, weekend_adjust")
           .eq("paused", false),
         supabase
           .from("households")
