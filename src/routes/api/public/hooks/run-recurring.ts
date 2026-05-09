@@ -54,15 +54,17 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
     handlers: {
       POST: async () => {
         const today = toDateOnly(new Date());
-        let processed = 0;
-        let skipped = 0;
-        const errors: string[] = [];
+        // Look 2 days ahead so income with weekend_adjust (Sat→Fri / Sun→Fri)
+        // can fire on the adjusted Friday.
+        const lookahead = toDateOnly(new Date(Date.now() + 2 * 86400000));
 
         const { data: due, error } = await supabaseAdmin
           .from("recurring_rules")
-          .select("id, user_id, household_id, name, amount, kind, frequency, next_run, category_id")
+          .select(
+            "id, user_id, household_id, name, amount, kind, frequency, next_run, category_id, weekend_adjust",
+          )
           .eq("paused", false)
-          .lte("next_run", today)
+          .lte("next_run", lookahead)
           .limit(500);
 
         if (error) {
@@ -73,11 +75,20 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
         }
 
         for (const rule of (due as DueRule[] | null) ?? []) {
-          // Only post a transaction when the rule is due TODAY exactly.
-          // If next_run is in the past (stale / missed cycles / bad start_date),
-          // just roll next_run forward without inserting anything — never back-fire.
-          if (rule.next_run === today) {
-            // Idempotency: only one transaction per rule per day.
+          // Compute the actual fire date, honouring weekend_adjust.
+          const fireDate = rule.weekend_adjust
+            ? adjustForWeekend(rule.next_run, rule.kind)
+            : rule.next_run;
+
+          // Not due yet (e.g. income shifted to a Friday that's still ahead).
+          if (fireDate > today) {
+            skipped++;
+            continue;
+          }
+
+          // Fire only when the adjusted date is exactly today. Past adjusted
+          // dates are stale — roll forward without back-firing.
+          if (fireDate === today) {
             const { data: existing } = await supabaseAdmin
               .from("transactions")
               .select("id")
@@ -109,9 +120,9 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
             skipped++;
           }
 
-          // Advance next_run forward until it lands on a future date.
-          // This prevents pile-ups when the cron has missed cycles, but only
-          // posts ONE catch-up transaction (dated today) regardless.
+          // Advance next_run past the raw scheduled date. Use the raw
+          // next_run as the anchor (not the adjusted date) so the schedule
+          // stays on its true cycle.
           let next = nextRunFrom(new Date(rule.next_run), rule.frequency);
           const todayDate = new Date(today);
           while (next <= todayDate) {
