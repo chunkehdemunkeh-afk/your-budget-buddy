@@ -23,6 +23,19 @@ function toDateOnly(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Mirror of src/lib/recurring.ts adjustForWeekend — kept inline to avoid
+// importing client-side modules into the server route.
+function adjustForWeekend(dateStr: string, kind: string): string {
+  const d = new Date(dateStr + "T12:00:00");
+  const dow = d.getUTCDay();
+  if (dow === 6) {
+    d.setUTCDate(d.getUTCDate() + (kind === "income" ? -1 : 2));
+  } else if (dow === 0) {
+    d.setUTCDate(d.getUTCDate() + (kind === "income" ? -2 : 1));
+  }
+  return toDateOnly(d);
+}
+
 interface DueRule {
   id: string;
   user_id: string;
@@ -33,6 +46,7 @@ interface DueRule {
   frequency: Frequency;
   next_run: string;
   category_id: string | null;
+  weekend_adjust: boolean;
 }
 
 export const Route = createFileRoute("/api/public/hooks/run-recurring")({
