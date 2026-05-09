@@ -54,6 +54,9 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
     handlers: {
       POST: async () => {
         const today = toDateOnly(new Date());
+        let processed = 0;
+        let skipped = 0;
+        const errors: string[] = [];
         // Look 2 days ahead so income with weekend_adjust (Sat→Fri / Sun→Fri)
         // can fire on the adjusted Friday.
         const lookahead = toDateOnly(new Date(Date.now() + 2 * 86400000));
