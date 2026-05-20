@@ -132,11 +132,6 @@ function getWeekBoundsForDate(anchor: Date) {
   return { startStr: toLocalDate(mon), endStr: toLocalDate(sun), label };
 }
 
-function getWeekBounds(offset: number) {
-  const now = new Date();
-  now.setDate(now.getDate() + offset * 7);
-  return getWeekBoundsForDate(now);
-}
 
 function getMonthBoundsForDate(anchor: Date) {
   const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
