@@ -208,7 +208,14 @@ function DashboardPage() {
   const [allRecurringRules, setAllRecurringRules] = useState<AllRecurringRule[]>([]);
   const [obDate, setObDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [viewMode, setViewMode] = useState<"week" | "month">(() => {
+    if (typeof window === "undefined") return "week";
+    return (localStorage.getItem("dashboard.aheadView") as "week" | "month") ?? "week";
+  });
+  const [anchorDate, setAnchorDate] = useState<Date>(() => new Date());
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("dashboard.aheadView", viewMode);
+  }, [viewMode]);
   const [oneOffBills, setOneOffBills] = useState<OneOffBill[]>([]);
 
   useEffect(() => {
