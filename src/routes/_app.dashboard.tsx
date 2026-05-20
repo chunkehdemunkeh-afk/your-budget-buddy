@@ -100,98 +100,99 @@ interface WeekItem {
   oneOffBill?: OneOffBill;
 }
 
-// ─── Week-ahead helpers ─────────────────────────────────────────────────────────
+// ─── Date & balance helpers ────────────────────────────────────────────────────
 
 function toLocalDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function getWeekBounds(offset: number) {
-  const now = new Date();
-  const dow = now.getDay(); // 0 = Sun
+function addDaysStr(s: string, n: number): string {
+  const d = new Date(s + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return toLocalDate(d);
+}
+
+function mondayOf(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const dow = d.getDay();
   const daysToMon = dow === 0 ? -6 : 1 - dow;
-  const mon = new Date(now);
-  mon.setDate(now.getDate() + daysToMon + offset * 7);
-  mon.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + daysToMon);
+  return d;
+}
+
+function getWeekBoundsForDate(anchor: Date) {
+  const mon = mondayOf(anchor);
   const sun = new Date(mon);
   sun.setDate(mon.getDate() + 6);
-  const startStr = toLocalDate(mon);
-  const endStr = toLocalDate(sun);
   const shortFmt: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
   const label =
     `${mon.toLocaleDateString("en-GB", shortFmt)} – ` +
     `${sun.toLocaleDateString("en-GB", { ...shortFmt, year: "numeric" })}`;
-  return { startStr, endStr, label };
+  return { startStr: toLocalDate(mon), endStr: toLocalDate(sun), label };
 }
 
+function getWeekBounds(offset: number) {
+  const now = new Date();
+  now.setDate(now.getDate() + offset * 7);
+  return getWeekBoundsForDate(now);
+}
 
-function computeWeekBalance(
-  weekOffset: number,
+function getMonthBoundsForDate(anchor: Date) {
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+  const label = first.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  return { startStr: toLocalDate(first), endStr: toLocalDate(last), label };
+}
+
+function getMonthBounds(offset: number) {
+  const now = new Date();
+  const anchor = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  return getMonthBoundsForDate(anchor);
+}
+
+/**
+ * Balance at end-of-day for `dateStr`.
+ * - If dateStr >= today: starts from currentBalance, adds future actual tx and
+ *   unfired projected recurring through dateStr.
+ * - If dateStr < today: starts from currentBalance, subtracts actual tx that
+ *   occurred after dateStr through today.
+ */
+function balanceEndOf(
+  dateStr: string,
   currentBalance: number,
-  filteredTxs: BalanceTransaction[],
+  txs: BalanceTransaction[],
   allRecurring: AllRecurringRule[],
   todayStr: string,
   firedRuleDates: Set<string>,
-): { opening: number; closing: number } {
-  const { startStr, endStr } = getWeekBounds(weekOffset);
-
-  if (weekOffset <= 0) {
-    // Opening = currentBalance minus net of all actual tx from this week's Monday to today
-    const txFromStart = filteredTxs.filter(
-      (tx) => tx.occurred_on >= startStr && tx.occurred_on <= todayStr,
-    );
-    const netToDate = txFromStart.reduce(
-      (s, tx) => (tx.kind === "income" ? s + Number(tx.amount) : s - Number(tx.amount)),
-      0,
-    );
-    const opening = currentBalance - netToDate;
-
-    // Closing = opening + net of actual tx for the full week + projected recurring for today/future days
-    const txInWeek = filteredTxs.filter(
-      (tx) => tx.occurred_on >= startStr && tx.occurred_on <= endStr,
-    );
-    const actualNet = txInWeek.reduce(
-      (s, tx) => (tx.kind === "income" ? s + Number(tx.amount) : s - Number(tx.amount)),
-      0,
-    );
-
-    let projectedNet = 0;
-    if (weekOffset === 0) {
-      // Project recurring items from today onwards. Skip any that have already
-      // posted a transaction for that date (avoids double counting once cron fires).
-      if (todayStr <= endStr) {
-        allRecurring.forEach((rule) => {
-          adjustedOccurrencesInRange(rule, todayStr, endStr).forEach((ds) => {
-            if (firedRuleDates.has(`${rule.id}|${ds}`)) return;
-            projectedNet += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
-          });
-        });
+): number {
+  if (dateStr >= todayStr) {
+    const dayAfterToday = addDaysStr(todayStr, 1);
+    let net = 0;
+    for (const tx of txs) {
+      if (tx.occurred_on >= dayAfterToday && tx.occurred_on <= dateStr) {
+        net += tx.kind === "income" ? Number(tx.amount) : -Number(tx.amount);
       }
     }
-
-    return { opening, closing: opening + actualNet + projectedNet };
-  }
-
-  // Future week: chain from closing of week 0
-  const week0 = computeWeekBalance(0, currentBalance, filteredTxs, allRecurring, todayStr, firedRuleDates);
-  let balance = week0.closing;
-  for (let w = 1; w < weekOffset; w++) {
-    const { startStr: ws, endStr: we } = getWeekBounds(w);
-    allRecurring.forEach((rule) => {
-      adjustedOccurrencesInRange(rule, ws, we).forEach(() => {
-        balance += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
+    for (const rule of allRecurring) {
+      adjustedOccurrencesInRange(rule, todayStr, dateStr).forEach((ds) => {
+        if (firedRuleDates.has(`${rule.id}|${ds}`)) return;
+        net += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
       });
-    });
+    }
+    return currentBalance + net;
+  } else {
+    const dayAfter = addDaysStr(dateStr, 1);
+    let net = 0;
+    for (const tx of txs) {
+      if (tx.occurred_on >= dayAfter && tx.occurred_on <= todayStr) {
+        net += tx.kind === "income" ? Number(tx.amount) : -Number(tx.amount);
+      }
+    }
+    return currentBalance - net;
   }
-  const opening = balance;
-  let weekNet = 0;
-  allRecurring.forEach((rule) => {
-    adjustedOccurrencesInRange(rule, startStr, endStr).forEach(() => {
-      weekNet += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
-    });
-  });
-  return { opening, closing: opening + weekNet };
 }
+
 
 // ─── Dashboard ──────────────────────────────────────────────────────────────────
 
