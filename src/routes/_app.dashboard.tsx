@@ -573,9 +573,11 @@ function DashboardPage() {
 
       {/* Week Ahead */}
       <div className="mb-6">
-        <WeekAheadSection
-          weekOffset={weekOffset}
-          setWeekOffset={setWeekOffset}
+        <AheadSection
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          anchorDate={anchorDate}
+          setAnchorDate={setAnchorDate}
           currentBalance={currentBalance}
           allTxs={allTxs}
           transactions={transactions}
