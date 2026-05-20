@@ -12,8 +12,12 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  CalendarIcon,
+  ChevronDown,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   PieChart,
   Pie,
