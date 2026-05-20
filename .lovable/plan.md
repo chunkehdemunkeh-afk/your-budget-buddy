@@ -1,76 +1,50 @@
-## Per-household food budget
+## Goal
 
-Replace the hardcoded £1,600 family food budget with a per-household value that's calculated from household composition by default but can be overridden manually.
+Make it easier to navigate the "Week ahead" section on the dashboard by adding (1) a date picker to jump straight to any week, and (2) a toggle to switch the section between a weekly and a monthly view.
 
-### How the budget gets calculated
+## Changes
 
-UK-average monthly food costs used as the suggested default:
+### 1. Add a date jump (calendar) control to the Week ahead header
 
-- Adults: **£200** each
-- Children: **£140** each
-- Pets: **£30** each
+In `src/routes/_app.dashboard.tsx` → `WeekAheadSection`, add a small calendar button between the prev/next chevrons and the label.
 
-Example: 2 adults + 4 children + 1 pet = £200×2 + £140×4 + £30 = **£990/month**
+- Use shadcn `Popover` + `Calendar` (`mode="single"`).
+- When the user picks a date, compute which week (or month, see below) contains it and update `weekOffset` / `monthOffset` accordingly.
+- A "Today" button inside the popover snaps back to offset 0.
 
-The user enters the three numbers, sees the suggested total, and can either accept it or type a different number. If they edit the manual override, that number is used everywhere. If they clear it, we fall back to the calculated value.
+### 2. Add a Week / Month toggle
 
-### Settings UI (Household section)
+Add a small segmented toggle ("Week" | "Month") in the section header.
 
-A new "Food budget" subsection under Household, above the members list:
+- New state at the dashboard level: `viewMode: "week" | "month"` and `monthOffset: number` (alongside the existing `weekOffset`).
+- Persist `viewMode` to `localStorage` so the user's preference sticks between visits.
 
-```text
-Food budget
-─────────────────────────
-Adults    [ 2 ]
-Children  [ 4 ]
-Pets      [ 1 ]
+### 3. Monthly view rendering
 
-Suggested: £990/month
-(£200/adult, £140/child, £30/pet)
+When `viewMode === "month"`:
 
-Monthly food budget
-£ [ 990            ]   [Use suggested]
-```
+- Header label shows the month (e.g. "Nov 2026") with prev/next stepping by one calendar month.
+- Compute `startStr` = first day of month, `endStr` = last day of month.
+- Reuse the existing `itemsByDay` logic but iterate every day in the month instead of a fixed 7.
+- Group days into weeks (Mon–Sun rows) and render each week as a collapsible block:
+  - Collapsed (default for non-current weeks): one row showing week range, net change, running balance.
+  - Expanded: the same per-day cards already used in the weekly view.
+  - The week containing today is expanded by default.
+- Opening balance = balance at start of month; closing = opening + month net (using the same `computeWeekBalance`-style chaining, generalised to arbitrary ranges).
 
-The "Use suggested" button appears only when the manual figure differs from the calculated one. Saved together with the rest of the household via the existing "Save household" button.
+### 4. Generalise the balance helper
 
-### Where it's used
+Refactor `computeWeekBalance` into `computeRangeBalance(startStr, endStr, ...)` so both weekly and monthly views share one implementation. The current `computeWeekBalance` becomes a thin wrapper that derives the range from `weekOffset`.
 
-The Insights page food shopping tracker currently shows hardcoded "£1,600 family budget" in 5 places (progress bar, headline, remaining/over text, smart suggestion bodies). All of these switch to read the household's budget. Copy changes from "the £1,600 family budget" → "your monthly food budget".
+## Technical notes
 
-### Technical details
+- `Calendar` + `Popover` are already in `src/components/ui/`; no new dependencies.
+- Remember `pointer-events-auto` on the `Calendar` className inside the popover (per project convention).
+- Keep all date math in local time via `toLocalDate` / `toDateOnly` to avoid the BST/UTC issue called out in `CLAUDE.md`.
+- `adjustedOccurrencesInRange` already supports arbitrary ranges, so projected recurring items work unchanged for monthly view.
+- No DB or schema changes. No changes to the recurring engine or the weekend-adjust logic.
 
-**Database** (migration):
-- Add to `households` table:
-  - `adults int not null default 2`
-  - `children int not null default 0`
-  - `pets int not null default 0`
-  - `food_budget_override numeric` (nullable — null means "use calculated")
+## Out of scope
 
-**Shared helper** (`src/lib/food-budget.ts`, new file):
-```ts
-export const FOOD_RATES = { adult: 200, child: 140, pet: 30 };
-export function calculateFoodBudget(adults, children, pets) { ... }
-export function effectiveFoodBudget(household) {
-  return household.food_budget_override
-    ?? calculateFoodBudget(household.adults, household.children, household.pets);
-}
-```
-
-**Settings page** (`src/routes/_app.settings.tsx`):
-- Load the four new fields alongside existing household data
-- Add inputs + suggested calculation display
-- Include the four fields in the `saveHousehold` update
-
-**Insights page** (`src/routes/_app.insights.tsx`):
-- Remove `const FOOD_BUDGET = 1600`
-- Fetch household record (or get from `useAuth` if extended) to compute `effectiveFoodBudget`
-- Replace 5 hardcoded references with the dynamic value
-- Update copy: "£1,600 family budget" → "monthly food budget" / dynamic amount
-
-**Backwards compatibility**: existing households default to 2 adults / 0 children / 0 pets = £400 suggested. Users can correct on first visit to Settings. No data loss.
-
-### Out of scope
-
-- No per-category budgets for non-food spending (separate feature)
-- Suggested rates are fixed constants, not user-configurable (can revisit later)
+- Year view, custom date ranges, or editing transactions from the monthly view (still tap-through as today).
+- Changing how recurring rules fire.

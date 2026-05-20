@@ -12,8 +12,12 @@ import {
   Trash2,
   ChevronLeft,
   ChevronRight,
+  CalendarIcon,
+  ChevronDown,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   PieChart,
   Pie,
@@ -96,98 +100,94 @@ interface WeekItem {
   oneOffBill?: OneOffBill;
 }
 
-// ─── Week-ahead helpers ─────────────────────────────────────────────────────────
+// ─── Date & balance helpers ────────────────────────────────────────────────────
 
 function toLocalDate(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function getWeekBounds(offset: number) {
-  const now = new Date();
-  const dow = now.getDay(); // 0 = Sun
+function addDaysStr(s: string, n: number): string {
+  const d = new Date(s + "T12:00:00");
+  d.setDate(d.getDate() + n);
+  return toLocalDate(d);
+}
+
+function mondayOf(date: Date): Date {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const dow = d.getDay();
   const daysToMon = dow === 0 ? -6 : 1 - dow;
-  const mon = new Date(now);
-  mon.setDate(now.getDate() + daysToMon + offset * 7);
-  mon.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + daysToMon);
+  return d;
+}
+
+function getWeekBoundsForDate(anchor: Date) {
+  const mon = mondayOf(anchor);
   const sun = new Date(mon);
   sun.setDate(mon.getDate() + 6);
-  const startStr = toLocalDate(mon);
-  const endStr = toLocalDate(sun);
   const shortFmt: Intl.DateTimeFormatOptions = { day: "numeric", month: "short" };
   const label =
     `${mon.toLocaleDateString("en-GB", shortFmt)} – ` +
     `${sun.toLocaleDateString("en-GB", { ...shortFmt, year: "numeric" })}`;
-  return { startStr, endStr, label };
+  return { startStr: toLocalDate(mon), endStr: toLocalDate(sun), label };
 }
 
 
-function computeWeekBalance(
-  weekOffset: number,
+function getMonthBoundsForDate(anchor: Date) {
+  const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+  const label = first.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  return { startStr: toLocalDate(first), endStr: toLocalDate(last), label };
+}
+
+function getMonthBounds(offset: number) {
+  const now = new Date();
+  const anchor = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+  return getMonthBoundsForDate(anchor);
+}
+
+/**
+ * Balance at end-of-day for `dateStr`.
+ * - If dateStr >= today: starts from currentBalance, adds future actual tx and
+ *   unfired projected recurring through dateStr.
+ * - If dateStr < today: starts from currentBalance, subtracts actual tx that
+ *   occurred after dateStr through today.
+ */
+function balanceEndOf(
+  dateStr: string,
   currentBalance: number,
-  filteredTxs: BalanceTransaction[],
+  txs: BalanceTransaction[],
   allRecurring: AllRecurringRule[],
   todayStr: string,
   firedRuleDates: Set<string>,
-): { opening: number; closing: number } {
-  const { startStr, endStr } = getWeekBounds(weekOffset);
-
-  if (weekOffset <= 0) {
-    // Opening = currentBalance minus net of all actual tx from this week's Monday to today
-    const txFromStart = filteredTxs.filter(
-      (tx) => tx.occurred_on >= startStr && tx.occurred_on <= todayStr,
-    );
-    const netToDate = txFromStart.reduce(
-      (s, tx) => (tx.kind === "income" ? s + Number(tx.amount) : s - Number(tx.amount)),
-      0,
-    );
-    const opening = currentBalance - netToDate;
-
-    // Closing = opening + net of actual tx for the full week + projected recurring for today/future days
-    const txInWeek = filteredTxs.filter(
-      (tx) => tx.occurred_on >= startStr && tx.occurred_on <= endStr,
-    );
-    const actualNet = txInWeek.reduce(
-      (s, tx) => (tx.kind === "income" ? s + Number(tx.amount) : s - Number(tx.amount)),
-      0,
-    );
-
-    let projectedNet = 0;
-    if (weekOffset === 0) {
-      // Project recurring items from today onwards. Skip any that have already
-      // posted a transaction for that date (avoids double counting once cron fires).
-      if (todayStr <= endStr) {
-        allRecurring.forEach((rule) => {
-          adjustedOccurrencesInRange(rule, todayStr, endStr).forEach((ds) => {
-            if (firedRuleDates.has(`${rule.id}|${ds}`)) return;
-            projectedNet += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
-          });
-        });
+): number {
+  if (dateStr >= todayStr) {
+    const dayAfterToday = addDaysStr(todayStr, 1);
+    let net = 0;
+    for (const tx of txs) {
+      if (tx.occurred_on >= dayAfterToday && tx.occurred_on <= dateStr) {
+        net += tx.kind === "income" ? Number(tx.amount) : -Number(tx.amount);
       }
     }
-
-    return { opening, closing: opening + actualNet + projectedNet };
-  }
-
-  // Future week: chain from closing of week 0
-  const week0 = computeWeekBalance(0, currentBalance, filteredTxs, allRecurring, todayStr, firedRuleDates);
-  let balance = week0.closing;
-  for (let w = 1; w < weekOffset; w++) {
-    const { startStr: ws, endStr: we } = getWeekBounds(w);
-    allRecurring.forEach((rule) => {
-      adjustedOccurrencesInRange(rule, ws, we).forEach(() => {
-        balance += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
+    for (const rule of allRecurring) {
+      adjustedOccurrencesInRange(rule, todayStr, dateStr).forEach((ds) => {
+        if (firedRuleDates.has(`${rule.id}|${ds}`)) return;
+        net += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
       });
-    });
+    }
+    return currentBalance + net;
+  } else {
+    const dayAfter = addDaysStr(dateStr, 1);
+    let net = 0;
+    for (const tx of txs) {
+      if (tx.occurred_on >= dayAfter && tx.occurred_on <= todayStr) {
+        net += tx.kind === "income" ? Number(tx.amount) : -Number(tx.amount);
+      }
+    }
+    return currentBalance - net;
   }
-  const opening = balance;
-  let weekNet = 0;
-  allRecurring.forEach((rule) => {
-    adjustedOccurrencesInRange(rule, startStr, endStr).forEach(() => {
-      weekNet += rule.kind === "income" ? Number(rule.amount) : -Number(rule.amount);
-    });
-  });
-  return { opening, closing: opening + weekNet };
 }
+
 
 // ─── Dashboard ──────────────────────────────────────────────────────────────────
 
@@ -203,7 +203,14 @@ function DashboardPage() {
   const [allRecurringRules, setAllRecurringRules] = useState<AllRecurringRule[]>([]);
   const [obDate, setObDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [viewMode, setViewMode] = useState<"week" | "month">(() => {
+    if (typeof window === "undefined") return "week";
+    return (localStorage.getItem("dashboard.aheadView") as "week" | "month") ?? "week";
+  });
+  const [anchorDate, setAnchorDate] = useState<Date>(() => new Date());
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("dashboard.aheadView", viewMode);
+  }, [viewMode]);
   const [oneOffBills, setOneOffBills] = useState<OneOffBill[]>([]);
 
   useEffect(() => {
@@ -561,9 +568,11 @@ function DashboardPage() {
 
       {/* Week Ahead */}
       <div className="mb-6">
-        <WeekAheadSection
-          weekOffset={weekOffset}
-          setWeekOffset={setWeekOffset}
+        <AheadSection
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          anchorDate={anchorDate}
+          setAnchorDate={setAnchorDate}
           currentBalance={currentBalance}
           allTxs={allTxs}
           transactions={transactions}
@@ -691,11 +700,126 @@ function DashboardPage() {
   );
 }
 
-// ─── Week Ahead Section ─────────────────────────────────────────────────────────
+// ─── Ahead Section (Week / Month) ───────────────────────────────────────────────
 
-function WeekAheadSection({
-  weekOffset,
-  setWeekOffset,
+function DayRow({
+  ds,
+  items,
+  todayStr,
+  balance,
+  onToggleBill,
+}: {
+  ds: string;
+  items: WeekItem[];
+  todayStr: string;
+  balance: number;
+  onToggleBill: (b: OneOffBill) => void;
+}) {
+  const isToday = ds === todayStr;
+  const isPast = ds < todayStr;
+  const dayNet = items.reduce(
+    (s, it) => (it.kind === "income" ? s + it.amount : s - it.amount),
+    0,
+  );
+  const dayLabel = new Date(ds + "T12:00:00").toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+
+  return (
+    <div
+      className={cn(
+        "rounded-2xl px-3 py-2.5",
+        isToday ? "bg-primary/8 ring-1 ring-primary/20" : isPast ? "bg-muted/20" : "bg-muted/40",
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <span
+          className={cn(
+            "text-xs font-semibold",
+            isToday ? "text-primary" : isPast ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
+          {dayLabel}
+          {isToday && (
+            <span className="ml-2 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+              Today
+            </span>
+          )}
+        </span>
+        {items.length > 0 && (
+          <span
+            className={cn(
+              "text-xs font-semibold tabular-nums",
+              dayNet >= 0 ? "text-success" : "text-destructive",
+            )}
+          >
+            {dayNet >= 0 ? "+" : "−"}
+            {formatMoney(Math.abs(dayNet))}
+          </span>
+        )}
+      </div>
+
+      {items.length > 0 ? (
+        <>
+          <ul className="mt-1.5 space-y-1">
+            {items.map((item, i) => (
+              <li key={i} className="flex items-center justify-between gap-2 text-xs">
+                <span
+                  className={cn(
+                    "flex min-w-0 flex-1 items-center gap-1.5",
+                    item.isProjected ? "text-muted-foreground" : "text-foreground",
+                  )}
+                >
+                  {item.oneOffBill ? (
+                    <Checkbox
+                      className="h-3.5 w-3.5 shrink-0"
+                      checked={false}
+                      onCheckedChange={() => onToggleBill(item.oneOffBill!)}
+                    />
+                  ) : item.isProjected ? (
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
+                  ) : null}
+                  <span className="truncate">{item.name}</span>
+                </span>
+                <span
+                  className={cn(
+                    "shrink-0 font-medium tabular-nums",
+                    item.kind === "income" ? "text-success" : "text-destructive",
+                    item.isProjected && "opacity-70",
+                  )}
+                >
+                  {item.kind === "income" ? "+" : "−"}
+                  {formatMoney(item.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2 border-t border-border/40 pt-1.5 text-right">
+            <span className="text-xs text-muted-foreground">Balance </span>
+            <span
+              className={cn(
+                "text-xs font-semibold tabular-nums",
+                balance < 0 ? "text-destructive" : "text-foreground",
+              )}
+            >
+              {formatMoney(balance)}
+            </span>
+          </div>
+        </>
+      ) : (
+        <p className="mt-0.5 text-xs text-muted-foreground/40">Nothing scheduled</p>
+      )}
+    </div>
+  );
+}
+
+function AheadSection({
+  viewMode,
+  setViewMode,
+  anchorDate,
+  setAnchorDate,
   currentBalance,
   allTxs,
   transactions,
@@ -705,8 +829,10 @@ function WeekAheadSection({
   oneOffBills,
   onToggleBill,
 }: {
-  weekOffset: number;
-  setWeekOffset: (n: number) => void;
+  viewMode: "week" | "month";
+  setViewMode: (m: "week" | "month") => void;
+  anchorDate: Date;
+  setAnchorDate: (d: Date) => void;
   currentBalance: number;
   allTxs: BalanceTransaction[];
   transactions: Tx[];
@@ -716,10 +842,24 @@ function WeekAheadSection({
   oneOffBills: OneOffBill[];
   onToggleBill: (bill: OneOffBill) => void;
 }) {
-  const { startStr, endStr, label } = getWeekBounds(weekOffset);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const todayStr = toLocalDate(new Date());
 
-  // Set of "ruleId|date" pairs where a recurring transaction has already posted
+  const { startStr, endStr, label } =
+    viewMode === "week" ? getWeekBoundsForDate(anchorDate) : getMonthBoundsForDate(anchorDate);
+
+  // Build day list spanning [startStr, endStr]
+  const days = useMemo(() => {
+    const result: string[] = [];
+    const d = new Date(startStr + "T12:00:00");
+    const end = new Date(endStr + "T12:00:00");
+    while (toLocalDate(d) <= toLocalDate(end)) {
+      result.push(toLocalDate(d));
+      d.setDate(d.getDate() + 1);
+    }
+    return result;
+  }, [startStr, endStr]);
+
   const firedRuleDates = useMemo(() => {
     const s = new Set<string>();
     transactions.forEach((tx) => {
@@ -728,22 +868,11 @@ function WeekAheadSection({
     return s;
   }, [transactions]);
 
-  // Build 7 day slots
-  const days: string[] = [];
-  {
-    const d = new Date(startStr + "T12:00:00");
-    for (let i = 0; i < 7; i++) {
-      days.push(toLocalDate(d));
-      d.setDate(d.getDate() + 1);
-    }
-  }
-
   // Items per day
   const itemsByDay = useMemo(() => {
     const result: Record<string, WeekItem[]> = {};
     days.forEach((ds) => (result[ds] = []));
 
-    // Actual transactions (6-month window covers most cases)
     transactions.forEach((tx) => {
       if (tx.occurred_on >= startStr && tx.occurred_on <= endStr) {
         const cat = tx.category_id ? catMap.get(tx.category_id) : null;
@@ -756,9 +885,7 @@ function WeekAheadSection({
       }
     });
 
-    // Projected recurring rules from today onwards (skip already-fired)
-    const futureFrom = weekOffset > 0 ? startStr : todayStr;
-
+    const futureFrom = startStr > todayStr ? startStr : todayStr;
     if (futureFrom <= endStr) {
       allRecurring.forEach((rule) => {
         adjustedOccurrencesInRange(rule, futureFrom, endStr).forEach((ds) => {
@@ -773,7 +900,6 @@ function WeekAheadSection({
       });
     }
 
-    // One-off bills: show on their due_date within this week
     oneOffBills.forEach((bill) => {
       if (bill.due_date >= startStr && bill.due_date <= endStr) {
         result[bill.due_date]?.push({
@@ -787,29 +913,53 @@ function WeekAheadSection({
     });
 
     return result;
-  }, [startStr, endStr, weekOffset, transactions, allRecurring, catMap, todayStr, oneOffBills, firedRuleDates]);
+  }, [days, startStr, endStr, transactions, allRecurring, catMap, todayStr, oneOffBills, firedRuleDates]);
 
-  // Opening / closing balances
+  // Opening / closing using generic balanceEndOf helper
   const { opening, closing } = useMemo(() => {
     const filtered = openingBalanceDate
       ? allTxs.filter((tx) => tx.occurred_on >= openingBalanceDate)
       : allTxs;
-    const base = computeWeekBalance(weekOffset, currentBalance, filtered, allRecurring, todayStr, firedRuleDates);
-
-    // Include unpaid one-off bills due from today onwards in this week
-    const futureFrom = weekOffset > 0 ? startStr : todayStr;
+    const opening = balanceEndOf(
+      addDaysStr(startStr, -1),
+      currentBalance,
+      filtered,
+      allRecurring,
+      todayStr,
+      firedRuleDates,
+    );
+    let closing = balanceEndOf(
+      endStr,
+      currentBalance,
+      filtered,
+      allRecurring,
+      todayStr,
+      firedRuleDates,
+    );
+    // Subtract unpaid one-off bills due from max(today, startStr) through endStr
+    const futureFrom = startStr > todayStr ? startStr : todayStr;
     const billAdj = oneOffBills
       .filter((b) => b.due_date >= futureFrom && b.due_date <= endStr)
       .reduce((s, b) => s - Number(b.amount), 0);
+    closing += billAdj;
+    return { opening, closing };
+  }, [
+    startStr,
+    endStr,
+    currentBalance,
+    allTxs,
+    allRecurring,
+    openingBalanceDate,
+    todayStr,
+    oneOffBills,
+    firedRuleDates,
+  ]);
 
-    return { opening: base.opening, closing: base.closing + billAdj };
-  }, [weekOffset, currentBalance, allTxs, allRecurring, openingBalanceDate, todayStr, oneOffBills, startStr, endStr, firedRuleDates]);
+  const periodNet = closing - opening;
 
-  const weekNet = closing - opening;
-
-  // Running balance after each day (accumulates from opening)
-  const dailyBalances: Record<string, number> = {};
-  {
+  // Running balance for each day
+  const dailyBalances = useMemo(() => {
+    const result: Record<string, number> = {};
     let running = opening;
     for (const ds of days) {
       const items = itemsByDay[ds] ?? [];
@@ -818,33 +968,128 @@ function WeekAheadSection({
         0,
       );
       running += dayNet;
-      dailyBalances[ds] = running;
+      result[ds] = running;
     }
+    return result;
+  }, [days, itemsByDay, opening]);
+
+  // For monthly view: group days into Mon–Sun weeks
+  const weekGroups = useMemo(() => {
+    if (viewMode !== "month") return [];
+    const groups: { startStr: string; endStr: string; days: string[] }[] = [];
+    let current: string[] = [];
+    for (const ds of days) {
+      current.push(ds);
+      const dow = new Date(ds + "T12:00:00").getDay();
+      if (dow === 0) {
+        groups.push({ startStr: current[0], endStr: current[current.length - 1], days: current });
+        current = [];
+      }
+    }
+    if (current.length) {
+      groups.push({ startStr: current[0], endStr: current[current.length - 1], days: current });
+    }
+    return groups;
+  }, [viewMode, days]);
+
+  function stepPeriod(direction: -1 | 1) {
+    const d = new Date(anchorDate);
+    if (viewMode === "week") {
+      d.setDate(d.getDate() + 7 * direction);
+    } else {
+      d.setMonth(d.getMonth() + direction);
+    }
+    setAnchorDate(d);
   }
 
   return (
     <section className="rounded-3xl border border-border bg-card p-5 shadow-[var(--shadow-soft)]">
       {/* Header */}
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="text-sm font-semibold text-muted-foreground">Week ahead</h2>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setWeekOffset(weekOffset - 1)}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="Previous week"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
-          <span className="min-w-[160px] text-center text-xs font-medium tabular-nums">
-            {label}
-          </span>
-          <button
-            onClick={() => setWeekOffset(weekOffset + 1)}
-            className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label="Next week"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold text-muted-foreground">
+          {viewMode === "week" ? "Week ahead" : "Month ahead"}
+        </h2>
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="inline-flex rounded-lg bg-muted p-0.5 text-xs font-medium">
+            <button
+              onClick={() => setViewMode("week")}
+              className={cn(
+                "rounded-md px-2 py-1 transition-colors",
+                viewMode === "week"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Week
+            </button>
+            <button
+              onClick={() => setViewMode("month")}
+              className={cn(
+                "rounded-md px-2 py-1 transition-colors",
+                viewMode === "month"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Month
+            </button>
+          </div>
+          {/* Nav */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => stepPeriod(-1)}
+              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label={viewMode === "week" ? "Previous week" : "Previous month"}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium tabular-nums text-foreground transition-colors hover:bg-muted"
+                  aria-label="Jump to date"
+                >
+                  <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="min-w-[120px] text-center">{label}</span>
+                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={anchorDate}
+                  onSelect={(d) => {
+                    if (d) {
+                      setAnchorDate(d);
+                      setCalendarOpen(false);
+                    }
+                  }}
+                  weekStartsOn={1}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+                <div className="flex items-center justify-between border-t border-border p-2">
+                  <button
+                    onClick={() => {
+                      setAnchorDate(new Date());
+                      setCalendarOpen(false);
+                    }}
+                    className="rounded-md px-2 py-1 text-xs font-medium text-primary hover:bg-primary/10"
+                  >
+                    Today
+                  </button>
+                </div>
+              </PopoverContent>
+            </Popover>
+            <button
+              onClick={() => stepPeriod(1)}
+              className="rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label={viewMode === "week" ? "Next week" : "Next month"}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -854,119 +1099,107 @@ function WeekAheadSection({
         <span className="font-semibold tabular-nums">{formatMoney(opening)}</span>
       </div>
 
-      {/* Daily rows */}
-      <div className="space-y-1.5">
-        {days.map((ds) => {
-          const items = itemsByDay[ds] ?? [];
-          const isToday = ds === todayStr;
-          const isPast = ds < todayStr;
-          const dayNet = items.reduce(
-            (s, it) => (it.kind === "income" ? s + it.amount : s - it.amount),
-            0,
-          );
-          const dayLabel = new Date(ds + "T12:00:00").toLocaleDateString("en-GB", {
-            weekday: "short",
-            day: "numeric",
-            month: "short",
-          });
-
-          return (
-            <div
+      {/* Body */}
+      {viewMode === "week" ? (
+        <div className="space-y-1.5">
+          {days.map((ds) => (
+            <DayRow
               key={ds}
-              className={cn(
-                "rounded-2xl px-3 py-2.5",
-                isToday
-                  ? "bg-primary/8 ring-1 ring-primary/20"
-                  : isPast
-                    ? "bg-muted/20"
-                    : "bg-muted/40",
-              )}
-            >
-              {/* Day header */}
-              <div className="flex items-center justify-between">
-                <span
+              ds={ds}
+              items={itemsByDay[ds] ?? []}
+              todayStr={todayStr}
+              balance={dailyBalances[ds]}
+              onToggleBill={onToggleBill}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {weekGroups.map((grp) => {
+            const containsToday = todayStr >= grp.startStr && todayStr <= grp.endStr;
+            const weekItemsCount = grp.days.reduce(
+              (s, ds) => s + (itemsByDay[ds]?.length ?? 0),
+              0,
+            );
+            const weekNet = grp.days.reduce((s, ds) => {
+              const items = itemsByDay[ds] ?? [];
+              return (
+                s +
+                items.reduce(
+                  (ss, it) => (it.kind === "income" ? ss + it.amount : ss - it.amount),
+                  0,
+                )
+              );
+            }, 0);
+            const weekClosing = dailyBalances[grp.endStr];
+            const rangeLabel = `${new Date(grp.startStr + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${new Date(grp.endStr + "T12:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+            return (
+              <details
+                key={grp.startStr}
+                open={containsToday}
+                className="group rounded-2xl border border-border/60 bg-muted/20 [&[open]>summary>svg]:rotate-180"
+              >
+                <summary
                   className={cn(
-                    "text-xs font-semibold",
-                    isToday ? "text-primary" : isPast ? "text-muted-foreground" : "text-foreground",
+                    "flex cursor-pointer list-none items-center justify-between gap-2 rounded-2xl px-3 py-2.5 transition-colors hover:bg-muted/40",
+                    containsToday && "bg-primary/8 ring-1 ring-primary/20",
                   )}
                 >
-                  {dayLabel}
-                  {isToday && (
-                    <span className="ml-2 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                      Today
-                    </span>
-                  )}
-                </span>
-                {items.length > 0 && (
-                  <span
-                    className={cn(
-                      "text-xs font-semibold tabular-nums",
-                      dayNet >= 0 ? "text-success" : "text-destructive",
-                    )}
-                  >
-                    {dayNet >= 0 ? "+" : "−"}
-                    {formatMoney(Math.abs(dayNet))}
-                  </span>
-                )}
-              </div>
-
-              {/* Items */}
-              {items.length > 0 && (
-                <>
-                  <ul className="mt-1.5 space-y-1">
-                    {items.map((item, i) => (
-                      <li key={i} className="flex items-center justify-between gap-2 text-xs">
-                        <span
-                          className={cn(
-                            "flex min-w-0 flex-1 items-center gap-1.5",
-                            item.isProjected ? "text-muted-foreground" : "text-foreground",
-                          )}
-                        >
-                          {item.oneOffBill ? (
-                            <Checkbox
-                              className="h-3.5 w-3.5 shrink-0"
-                              checked={false}
-                              onCheckedChange={() => onToggleBill(item.oneOffBill!)}
-                            />
-                          ) : item.isProjected ? (
-                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
-                          ) : null}
-                          <span className="truncate">{item.name}</span>
-                        </span>
-                        <span
-                          className={cn(
-                            "shrink-0 font-medium tabular-nums",
-                            item.kind === "income" ? "text-success" : "text-destructive",
-                            item.isProjected && "opacity-70",
-                          )}
-                        >
-                          {item.kind === "income" ? "+" : "−"}
-                          {formatMoney(item.amount)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                  <div className="mt-2 border-t border-border/40 pt-1.5 text-right">
-                    <span className="text-xs text-muted-foreground">Balance </span>
+                  <div className="flex items-center gap-2">
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground transition-transform" />
                     <span
                       className={cn(
-                        "text-xs font-semibold tabular-nums",
-                        dailyBalances[ds] < 0 ? "text-destructive" : "text-foreground",
+                        "text-xs font-semibold",
+                        containsToday ? "text-primary" : "text-foreground",
                       )}
                     >
-                      {formatMoney(dailyBalances[ds])}
+                      {rangeLabel}
+                    </span>
+                    {weekItemsCount > 0 && (
+                      <span className="text-[10px] text-muted-foreground">
+                        {weekItemsCount} item{weekItemsCount === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs tabular-nums">
+                    {weekItemsCount > 0 && (
+                      <span
+                        className={cn(
+                          "font-medium",
+                          weekNet >= 0 ? "text-success" : "text-destructive",
+                        )}
+                      >
+                        {weekNet >= 0 ? "+" : "−"}
+                        {formatMoney(Math.abs(weekNet))}
+                      </span>
+                    )}
+                    <span
+                      className={cn(
+                        "font-semibold",
+                        weekClosing < 0 ? "text-destructive" : "text-foreground",
+                      )}
+                    >
+                      {formatMoney(weekClosing)}
                     </span>
                   </div>
-                </>
-              )}
-
-              {items.length === 0 && (
-                <p className="mt-0.5 text-xs text-muted-foreground/40">Nothing scheduled</p>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                </summary>
+                <div className="space-y-1.5 px-2 pb-2 pt-1">
+                  {grp.days.map((ds) => (
+                    <DayRow
+                      key={ds}
+                      ds={ds}
+                      items={itemsByDay[ds] ?? []}
+                      todayStr={todayStr}
+                      balance={dailyBalances[ds]}
+                      onToggleBill={onToggleBill}
+                    />
+                  ))}
+                </div>
+              </details>
+            );
+          })}
+        </div>
+      )}
 
       {/* Closing balance */}
       <div className="mt-3 flex items-center justify-between rounded-2xl bg-muted/50 px-4 py-2.5 text-sm">
@@ -975,11 +1208,11 @@ function WeekAheadSection({
           <span
             className={cn(
               "text-xs font-medium",
-              weekNet >= 0 ? "text-success" : "text-destructive",
+              periodNet >= 0 ? "text-success" : "text-destructive",
             )}
           >
-            {weekNet >= 0 ? "+" : "−"}
-            {formatMoney(Math.abs(weekNet))}
+            {periodNet >= 0 ? "+" : "−"}
+            {formatMoney(Math.abs(periodNet))}
           </span>
           <span
             className={cn(
