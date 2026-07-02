@@ -149,7 +149,7 @@ function InsightsPage() {
         supabase.from("goal_contributions").select("goal_id, amount, occurred_on"),
         supabase
           .from("recurring_rules")
-          .select("id, name, amount, frequency, kind, next_run, start_date, weekend_adjust")
+          .select("id, name, amount, frequency, kind, next_run, start_date, weekend_adjust, interval_days")
           .eq("paused", false),
         supabase
           .from("households")
