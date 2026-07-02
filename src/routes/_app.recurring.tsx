@@ -64,7 +64,7 @@ function RecurringPage() {
     async function load() {
       const { data, error } = await supabase
         .from("recurring_rules")
-        .select("id, name, amount, kind, frequency, start_date, next_run, category_id, paused, weekend_adjust, interval_days")
+        .select("id, name, amount, kind, frequency, start_date, next_run, category_id, paused, weekend_adjust, interval_days, end_date")
         .order("next_run", { ascending: true });
       if (!mounted) return;
       if (error) toast.error(error.message);
@@ -563,6 +563,7 @@ function RuleList({
                     </span>
                   )}
                   {cat ? ` · ${cat.name}` : ""}
+                  {r.end_date ? ` · Ends ${formatShortDate(r.end_date)}` : ""}
                 </p>
               </div>
             </div>

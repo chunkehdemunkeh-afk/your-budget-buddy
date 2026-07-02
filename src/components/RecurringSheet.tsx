@@ -40,6 +40,7 @@ export interface RecurringRule {
   paused: boolean;
   weekend_adjust: boolean;
   interval_days?: number | null;
+  end_date?: string | null;
 }
 
 interface Props {
@@ -56,12 +57,17 @@ const schema = z
     kind: z.enum(["income", "outgoing"]),
     frequency: z.enum(["weekly", "fortnightly", "fourweekly", "monthly", "yearly", "custom"]),
     start_date: z.string().min(1),
+    end_date: z.string().nullable(),
     category_id: z.string().uuid().nullable(),
     interval_days: z.number().int().min(1).max(365).nullable(),
   })
   .refine((d) => d.frequency !== "custom" || (d.interval_days != null && d.interval_days >= 1), {
     message: "Enter a number of days (1–365)",
     path: ["interval_days"],
+  })
+  .refine((d) => !d.end_date || d.end_date >= d.start_date, {
+    message: "End date must be on or after the start date",
+    path: ["end_date"],
   });
 
 export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoing" }: Props) {
@@ -72,6 +78,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
   const [kind, setKind] = useState<Kind>(defaultKind);
   const [frequency, setFrequency] = useState<Frequency>("monthly");
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [weekendAdjust, setWeekendAdjust] = useState(false);
   const [intervalDays, setIntervalDays] = useState<string>("");
@@ -85,6 +92,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         setKind(rule.kind);
         setFrequency(rule.frequency);
         setStartDate(rule.start_date);
+        setEndDate(rule.end_date ?? "");
         setCategoryId(rule.category_id);
         setWeekendAdjust(rule.weekend_adjust);
         setIntervalDays(rule.interval_days ? String(rule.interval_days) : "");
@@ -94,6 +102,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         setKind(defaultKind);
         setFrequency("monthly");
         setStartDate(new Date().toISOString().slice(0, 10));
+        setEndDate("");
         setCategoryId(null);
         setWeekendAdjust(false);
         setIntervalDays("");
@@ -112,6 +121,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
       kind,
       frequency,
       start_date: startDate,
+      end_date: endDate || null,
       category_id: categoryId,
       interval_days: frequency === "custom" ? Number(intervalDays) : null,
     });
@@ -130,6 +140,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
           kind: parsed.data.kind,
           frequency: parsed.data.frequency,
           start_date: parsed.data.start_date,
+          end_date: parsed.data.end_date,
           next_run: parsed.data.start_date,
           category_id: parsed.data.category_id,
           weekend_adjust: weekendAdjust,
@@ -152,6 +163,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         kind: parsed.data.kind,
         frequency: parsed.data.frequency,
         start_date: parsed.data.start_date,
+        end_date: parsed.data.end_date,
         next_run: parsed.data.start_date,
         category_id: parsed.data.category_id,
         weekend_adjust: weekendAdjust,
@@ -255,6 +267,32 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
                 className="mt-1 h-11 rounded-xl"
               />
             </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="rend">End date (optional)</Label>
+              {endDate && (
+                <button
+                  type="button"
+                  onClick={() => setEndDate("")}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <Input
+              id="rend"
+              type="date"
+              min={startDate}
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="mt-1 h-11 rounded-xl"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Leave blank to repeat indefinitely. No occurrences post after this date.
+            </p>
           </div>
 
           {frequency === "custom" && (

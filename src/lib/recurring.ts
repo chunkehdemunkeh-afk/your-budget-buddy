@@ -118,22 +118,25 @@ export function occurrencesInRange(
 // project occurrences into the current month (the backward walk from next_run
 // can otherwise land in the current month when next_run is in a future month).
 export function adjustedOccurrencesInRange(
-  rule: { next_run: string; frequency: string; kind: string; weekend_adjust: boolean; start_date?: string; interval_days?: number | null },
+  rule: { next_run: string; frequency: string; kind: string; weekend_adjust: boolean; start_date?: string; interval_days?: number | null; end_date?: string | null },
   startStr: string,
   endStr: string,
 ): string[] {
   const minDate = rule.start_date;
+  const maxDate = rule.end_date ?? null;
   const iv = rule.interval_days;
+  const effectiveEnd = maxDate && maxDate < endStr ? maxDate : endStr;
+  if (effectiveEnd < startStr) return [];
   if (!rule.weekend_adjust) {
-    const results = occurrencesInRange(rule.next_run, rule.frequency, startStr, endStr, iv);
+    const results = occurrencesInRange(rule.next_run, rule.frequency, startStr, effectiveEnd, iv);
     return minDate ? results.filter((d) => d >= minDate) : results;
   }
   const expanded = new Date(startStr + "T12:00:00");
   expanded.setDate(expanded.getDate() - 2);
   const expandedStart = toDateOnly(expanded);
-  const adjusted = occurrencesInRange(rule.next_run, rule.frequency, expandedStart, endStr, iv)
+  const adjusted = occurrencesInRange(rule.next_run, rule.frequency, expandedStart, effectiveEnd, iv)
     .map((ds) => adjustForWeekend(ds, rule.kind))
-    .filter((ds) => ds >= startStr && ds <= endStr);
+    .filter((ds) => ds >= startStr && ds <= effectiveEnd);
   const deduped = [...new Set(adjusted)];
   return minDate ? deduped.filter((d) => d >= minDate) : deduped;
 }
