@@ -240,6 +240,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
                   <SelectItem value="fourweekly">Every 4 Weeks</SelectItem>
                   <SelectItem value="monthly">Monthly</SelectItem>
                   <SelectItem value="yearly">Yearly</SelectItem>
+                  <SelectItem value="custom">Custom (every N days)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -255,6 +256,26 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
               />
             </div>
           </div>
+
+          {frequency === "custom" && (
+            <div>
+              <Label htmlFor="rinterval">Repeat every (days)</Label>
+              <Input
+                id="rinterval"
+                type="number"
+                min={1}
+                max={365}
+                required
+                placeholder="e.g. 10"
+                value={intervalDays}
+                onChange={(e) => setIntervalDays(e.target.value.replace(/[^\d]/g, ""))}
+                className="mt-1 h-11 rounded-xl"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Posts every {intervalDays || "N"} days starting from the date above.
+              </p>
+            </div>
+          )}
 
           <div>
             <Label>Category</Label>
