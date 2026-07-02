@@ -164,27 +164,27 @@ function GoalsPage() {
                       )}
                     </div>
                   </button>
-                  <div className="flex flex-col gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="flex flex-col gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7"
+                      className="h-9 w-9 sm:h-7 sm:w-7"
                       onClick={() => {
                         setEditing(g);
                         setSheetOpen(true);
                       }}
-                      aria-label="Edit"
+                      aria-label={`Edit ${g.name}`}
                     >
-                      <Pencil className="h-3.5 w-3.5" />
+                      <Pencil className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                      className="h-9 w-9 text-muted-foreground hover:text-destructive sm:h-7 sm:w-7"
                       onClick={() => setConfirmDelete(g)}
-                      aria-label="Delete"
+                      aria-label={`Delete ${g.name}`}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
                     </Button>
                   </div>
                 </div>
