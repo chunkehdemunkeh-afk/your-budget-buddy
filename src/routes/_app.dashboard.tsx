@@ -509,24 +509,32 @@ function DashboardPage() {
         <p className="mt-2 text-4xl font-bold tracking-tight md:text-5xl">
           {formatMoney(displayBalance)}
         </p>
-        <div className="mt-6 flex items-center justify-between gap-2">
-          <p className="text-xs opacity-80">
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+          <p className="text-[11px] uppercase tracking-wide opacity-70 sm:text-xs sm:normal-case sm:tracking-normal sm:opacity-80">
             {monthTileMode === "posted" ? "Posted so far" : "Projected month-end"}
           </p>
-          <div className="inline-flex rounded-full bg-white/15 p-0.5 text-xs">
+          <div
+            role="tablist"
+            aria-label="Month tile mode"
+            className="inline-flex w-full shrink-0 rounded-full bg-white/15 p-0.5 text-xs sm:w-auto"
+          >
             <button
+              role="tab"
               type="button"
+              aria-selected={monthTileMode === "posted"}
               onClick={() => setMonthTileMode("posted")}
-              className={`rounded-full px-3 py-1 transition ${
+              className={`flex-1 rounded-full px-3 py-1 transition sm:flex-none ${
                 monthTileMode === "posted" ? "bg-white text-primary" : "text-primary-foreground/80"
               }`}
             >
               So far
             </button>
             <button
+              role="tab"
               type="button"
+              aria-selected={monthTileMode === "projected"}
               onClick={() => setMonthTileMode("projected")}
-              className={`rounded-full px-3 py-1 transition ${
+              className={`flex-1 rounded-full px-3 py-1 transition sm:flex-none ${
                 monthTileMode === "projected" ? "bg-white text-primary" : "text-primary-foreground/80"
               }`}
             >
@@ -534,14 +542,15 @@ function DashboardPage() {
             </button>
           </div>
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-3">
-          <Stat label="This month in" value={incomeMonth} icon={<TrendingUp className="h-4 w-4" />} />
+        <div className="mt-3 grid grid-cols-3 gap-2 sm:gap-3">
+          <Stat label="In" fullLabel="This month in" value={incomeMonth} icon={<TrendingUp className="h-4 w-4" />} />
           <Stat
-            label="This month out"
+            label="Out"
+            fullLabel="This month out"
             value={outgoingMonth}
             icon={<TrendingDown className="h-4 w-4" />}
           />
-          <Stat label="Month net" value={monthBalance} icon={<Wallet className="h-4 w-4" />} />
+          <Stat label="Net" fullLabel="Month net" value={monthBalance} icon={<Wallet className="h-4 w-4" />} />
         </div>
       </div>
 
@@ -1290,14 +1299,27 @@ function AheadSection({
 
 // ─── Small shared components ────────────────────────────────────────────────────
 
-function Stat({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
+function Stat({
+  label,
+  fullLabel,
+  value,
+  icon,
+}: {
+  label: string;
+  fullLabel?: string;
+  value: number;
+  icon: React.ReactNode;
+}) {
   return (
-    <div className="rounded-2xl bg-white/15 p-3 backdrop-blur-sm">
-      <div className="flex items-center gap-1.5 text-xs opacity-80">
-        {icon}
-        {label}
+    <div className="rounded-2xl bg-white/15 p-2.5 backdrop-blur-sm sm:p-3">
+      <div className="flex items-center gap-1.5 text-[11px] opacity-80 sm:text-xs">
+        <span className="shrink-0">{icon}</span>
+        <span className="truncate">
+          <span className="sm:hidden">{label}</span>
+          <span className="hidden sm:inline">{fullLabel ?? label}</span>
+        </span>
       </div>
-      <p className="mt-1 text-lg font-semibold">{formatMoney(value)}</p>
+      <p className="mt-1 text-base font-semibold tabular-nums sm:text-lg">{formatMoney(value)}</p>
     </div>
   );
 }
