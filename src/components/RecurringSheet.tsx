@@ -57,12 +57,17 @@ const schema = z
     kind: z.enum(["income", "outgoing"]),
     frequency: z.enum(["weekly", "fortnightly", "fourweekly", "monthly", "yearly", "custom"]),
     start_date: z.string().min(1),
+    end_date: z.string().nullable(),
     category_id: z.string().uuid().nullable(),
     interval_days: z.number().int().min(1).max(365).nullable(),
   })
   .refine((d) => d.frequency !== "custom" || (d.interval_days != null && d.interval_days >= 1), {
     message: "Enter a number of days (1–365)",
     path: ["interval_days"],
+  })
+  .refine((d) => !d.end_date || d.end_date >= d.start_date, {
+    message: "End date must be on or after the start date",
+    path: ["end_date"],
   });
 
 export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoing" }: Props) {
