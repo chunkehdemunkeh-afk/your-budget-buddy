@@ -332,7 +332,7 @@ function DashboardPage() {
     const now = new Date();
     const monthStartStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
     const nextMonthStartStr = toLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 1));
-    const todayStr = toLocalDate(now);
+    
 
     // Bound to this calendar month only — excludes future-month transactions entered in advance.
     const inMonth = transactions.filter(
