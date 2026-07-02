@@ -551,11 +551,11 @@ function RuleList({
                   </span>
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {frequencyLabel(r.frequency)} · next{" "}
+                  {frequencyLabel(r.frequency, r.interval_days)} · next{" "}
                   {formatShortDate(
                     r.weekend_adjust
-                      ? adjustForWeekend(displayNextRun(r.next_run, r.frequency), r.kind)
-                      : displayNextRun(r.next_run, r.frequency),
+                      ? adjustForWeekend(displayNextRun(r.next_run, r.frequency, r.interval_days), r.kind)
+                      : displayNextRun(r.next_run, r.frequency, r.interval_days),
                   )}
                   {r.weekend_adjust && (
                     <span className="ml-1.5 inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
