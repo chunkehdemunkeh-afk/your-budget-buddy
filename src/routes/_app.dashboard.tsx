@@ -509,7 +509,32 @@ function DashboardPage() {
         <p className="mt-2 text-4xl font-bold tracking-tight md:text-5xl">
           {formatMoney(displayBalance)}
         </p>
-        <div className="mt-6 grid grid-cols-3 gap-3">
+        <div className="mt-6 flex items-center justify-between gap-2">
+          <p className="text-xs opacity-80">
+            {monthTileMode === "posted" ? "Posted so far" : "Projected month-end"}
+          </p>
+          <div className="inline-flex rounded-full bg-white/15 p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setMonthTileMode("posted")}
+              className={`rounded-full px-3 py-1 transition ${
+                monthTileMode === "posted" ? "bg-white text-primary" : "text-primary-foreground/80"
+              }`}
+            >
+              So far
+            </button>
+            <button
+              type="button"
+              onClick={() => setMonthTileMode("projected")}
+              className={`rounded-full px-3 py-1 transition ${
+                monthTileMode === "projected" ? "bg-white text-primary" : "text-primary-foreground/80"
+              }`}
+            >
+              Projected
+            </button>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-3">
           <Stat label="This month in" value={incomeMonth} icon={<TrendingUp className="h-4 w-4" />} />
           <Stat
             label="This month out"
