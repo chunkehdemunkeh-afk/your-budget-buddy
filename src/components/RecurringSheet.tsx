@@ -269,6 +269,32 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
             </div>
           </div>
 
+          <div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="rend">End date (optional)</Label>
+              {endDate && (
+                <button
+                  type="button"
+                  onClick={() => setEndDate("")}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <Input
+              id="rend"
+              type="date"
+              min={startDate}
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="mt-1 h-11 rounded-xl"
+            />
+            <p className="mt-1 text-xs text-muted-foreground">
+              Leave blank to repeat indefinitely. No occurrences post after this date.
+            </p>
+          </div>
+
           {frequency === "custom" && (
             <div>
               <Label htmlFor="rinterval">Repeat every (days)</Label>
