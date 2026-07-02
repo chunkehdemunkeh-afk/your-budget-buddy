@@ -545,15 +545,16 @@ function DashboardPage() {
           </div>
           <div
             role="tablist"
-            aria-label="Month tile mode"
+            aria-label="Switch month totals between posted so far and projected month-end"
             className="inline-flex w-full shrink-0 rounded-full bg-white/15 p-0.5 text-xs sm:w-auto"
           >
             <button
               role="tab"
               type="button"
               aria-selected={monthTileMode === "posted"}
+              aria-label="Show posted so far — only income and outgoings dated today or earlier"
               onClick={() => setMonthTileMode("posted")}
-              className={`flex-1 rounded-full px-3 py-1 transition sm:flex-none ${
+              className={`flex-1 min-h-11 rounded-full px-3 py-1 transition sm:flex-none sm:min-h-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary ${
                 monthTileMode === "posted" ? "bg-white text-primary" : "text-primary-foreground/80"
               }`}
             >
@@ -563,8 +564,9 @@ function DashboardPage() {
               role="tab"
               type="button"
               aria-selected={monthTileMode === "projected"}
+              aria-label="Show projected month-end — includes recurring bills and income scheduled for the rest of the month"
               onClick={() => setMonthTileMode("projected")}
-              className={`flex-1 rounded-full px-3 py-1 transition sm:flex-none ${
+              className={`flex-1 min-h-11 rounded-full px-3 py-1 transition sm:flex-none sm:min-h-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary ${
                 monthTileMode === "projected" ? "bg-white text-primary" : "text-primary-foreground/80"
               }`}
             >
