@@ -121,6 +121,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
       kind,
       frequency,
       start_date: startDate,
+      end_date: endDate || null,
       category_id: categoryId,
       interval_days: frequency === "custom" ? Number(intervalDays) : null,
     });
