@@ -341,24 +341,27 @@ function DashboardPage() {
     let incomeMonth = inMonth
       .filter((t) => t.kind === "income")
       .reduce((s, t) => s + Number(t.amount), 0);
-    const outgoingMonth = inMonth
+    let outgoingMonth = inMonth
       .filter((t) => t.kind !== "income")
       .reduce((s, t) => s + Number(t.amount), 0);
 
-    // Project unfired recurring income for the whole month to date.
-    // Walks backward from next_run to find occurrences even when the cron has
-    // already advanced next_run past the due date without creating a transaction.
+    // Project unfired recurring items across the WHOLE month (past + future) so
+    // that "This month in / out / net" matches the week/month-ahead projection.
+    // Otherwise future outgoings (already dated in this month) are counted but
+    // future income (still living only as a recurring rule) is missing, making
+    // the net look artificially negative.
+    const monthEndStr = toLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
     const firedInMonth = new Set<string>();
     transactions.forEach((tx) => {
-      if (tx.occurred_on >= monthStartStr && tx.occurred_on <= todayStr && tx.recurring_rule_id) {
+      if (tx.occurred_on >= monthStartStr && tx.occurred_on <= monthEndStr && tx.recurring_rule_id) {
         firedInMonth.add(`${tx.recurring_rule_id}|${tx.occurred_on}`);
       }
     });
     allRecurringRules.forEach((rule) => {
-      if (rule.kind !== "income") return;
-      adjustedOccurrencesInRange(rule, monthStartStr, todayStr).forEach((ds) => {
+      adjustedOccurrencesInRange(rule, monthStartStr, monthEndStr).forEach((ds) => {
         if (firedInMonth.has(`${rule.id}|${ds}`)) return;
-        incomeMonth += Number(rule.amount);
+        if (rule.kind === "income") incomeMonth += Number(rule.amount);
+        else outgoingMonth += Number(rule.amount);
       });
     });
 
