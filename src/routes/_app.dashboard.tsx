@@ -1299,14 +1299,27 @@ function AheadSection({
 
 // ─── Small shared components ────────────────────────────────────────────────────
 
-function Stat({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
+function Stat({
+  label,
+  fullLabel,
+  value,
+  icon,
+}: {
+  label: string;
+  fullLabel?: string;
+  value: number;
+  icon: React.ReactNode;
+}) {
   return (
-    <div className="rounded-2xl bg-white/15 p-3 backdrop-blur-sm">
-      <div className="flex items-center gap-1.5 text-xs opacity-80">
-        {icon}
-        {label}
+    <div className="rounded-2xl bg-white/15 p-2.5 backdrop-blur-sm sm:p-3">
+      <div className="flex items-center gap-1.5 text-[11px] opacity-80 sm:text-xs">
+        <span className="shrink-0">{icon}</span>
+        <span className="truncate">
+          <span className="sm:hidden">{label}</span>
+          <span className="hidden sm:inline">{fullLabel ?? label}</span>
+        </span>
       </div>
-      <p className="mt-1 text-lg font-semibold">{formatMoney(value)}</p>
+      <p className="mt-1 text-base font-semibold tabular-nums sm:text-lg">{formatMoney(value)}</p>
     </div>
   );
 }
