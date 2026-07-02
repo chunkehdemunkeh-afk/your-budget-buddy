@@ -150,7 +150,7 @@ function RecurringPage() {
       toast.error(txErr.message);
       return;
     }
-    const next = toDateOnly(nextRunFrom(new Date(rule.next_run), rule.frequency));
+    const next = toDateOnly(nextRunFrom(new Date(rule.next_run), rule.frequency, rule.interval_days));
     await supabase.from("recurring_rules").update({ next_run: next }).eq("id", rule.id);
     toast.success(`${rule.name} posted · next ${formatShortDate(next)}`);
   }
