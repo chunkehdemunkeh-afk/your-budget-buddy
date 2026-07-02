@@ -520,7 +520,7 @@ function DashboardPage() {
                 <button
                   type="button"
                   aria-label="What do these totals include?"
-                  className="rounded-full p-0.5 opacity-70 transition hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full opacity-70 transition hover:opacity-100 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary sm:h-6 sm:w-6"
                 >
                   <Info className="h-3.5 w-3.5" />
                 </button>
@@ -545,15 +545,16 @@ function DashboardPage() {
           </div>
           <div
             role="tablist"
-            aria-label="Month tile mode"
+            aria-label="Switch month totals between posted so far and projected month-end"
             className="inline-flex w-full shrink-0 rounded-full bg-white/15 p-0.5 text-xs sm:w-auto"
           >
             <button
               role="tab"
               type="button"
               aria-selected={monthTileMode === "posted"}
+              aria-label="Show posted so far — only income and outgoings dated today or earlier"
               onClick={() => setMonthTileMode("posted")}
-              className={`flex-1 rounded-full px-3 py-1 transition sm:flex-none ${
+              className={`flex-1 min-h-11 rounded-full px-3 py-1 transition sm:flex-none sm:min-h-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary ${
                 monthTileMode === "posted" ? "bg-white text-primary" : "text-primary-foreground/80"
               }`}
             >
@@ -563,8 +564,9 @@ function DashboardPage() {
               role="tab"
               type="button"
               aria-selected={monthTileMode === "projected"}
+              aria-label="Show projected month-end — includes recurring bills and income scheduled for the rest of the month"
               onClick={() => setMonthTileMode("projected")}
-              className={`flex-1 rounded-full px-3 py-1 transition sm:flex-none ${
+              className={`flex-1 min-h-11 rounded-full px-3 py-1 transition sm:flex-none sm:min-h-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary ${
                 monthTileMode === "projected" ? "bg-white text-primary" : "text-primary-foreground/80"
               }`}
             >
@@ -1341,16 +1343,23 @@ function Stat({
   value: number;
   icon: React.ReactNode;
 }) {
+  const displayLabel = fullLabel ?? label;
   return (
-    <div className="rounded-2xl bg-white/15 p-2.5 backdrop-blur-sm sm:p-3">
-      <div className="flex items-center gap-1.5 text-[11px] opacity-80 sm:text-xs">
+    <div
+      role="group"
+      aria-label={`${displayLabel}: ${formatMoney(value)}`}
+      className="rounded-2xl bg-white/15 p-2.5 backdrop-blur-sm sm:p-3"
+    >
+      <div className="flex items-center gap-1.5 text-[11px] opacity-80 sm:text-xs" aria-hidden="true">
         <span className="shrink-0">{icon}</span>
         <span className="truncate">
           <span className="sm:hidden">{label}</span>
-          <span className="hidden sm:inline">{fullLabel ?? label}</span>
+          <span className="hidden sm:inline">{displayLabel}</span>
         </span>
       </div>
-      <p className="mt-1 text-base font-semibold tabular-nums sm:text-lg">{formatMoney(value)}</p>
+      <p className="mt-1 text-base font-semibold tabular-nums sm:text-lg" aria-hidden="true">
+        {formatMoney(value)}
+      </p>
     </div>
   );
 }
