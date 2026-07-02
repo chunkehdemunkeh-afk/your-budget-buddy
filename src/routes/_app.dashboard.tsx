@@ -520,7 +520,7 @@ function DashboardPage() {
                 <button
                   type="button"
                   aria-label="What do these totals include?"
-                  className="rounded-full p-0.5 opacity-70 transition hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full opacity-70 transition hover:opacity-100 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary sm:h-6 sm:w-6"
                 >
                   <Info className="h-3.5 w-3.5" />
                 </button>
