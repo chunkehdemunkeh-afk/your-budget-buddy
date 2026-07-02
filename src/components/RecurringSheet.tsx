@@ -74,6 +74,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [weekendAdjust, setWeekendAdjust] = useState(false);
+  const [intervalDays, setIntervalDays] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -86,6 +87,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         setStartDate(rule.start_date);
         setCategoryId(rule.category_id);
         setWeekendAdjust(rule.weekend_adjust);
+        setIntervalDays(rule.interval_days ? String(rule.interval_days) : "");
       } else {
         setName("");
         setAmount("");
@@ -94,6 +96,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         setStartDate(new Date().toISOString().slice(0, 10));
         setCategoryId(null);
         setWeekendAdjust(false);
+        setIntervalDays("");
       }
     }
   }, [open, rule, defaultKind]);
