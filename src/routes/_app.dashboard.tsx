@@ -328,28 +328,43 @@ function DashboardPage() {
     };
   }, [user, householdId]);
 
-  const { incomeMonth, outgoingMonth, byCategory, monthlyTrend, recent } = useMemo(() => {
+  const {
+    incomeMonthPosted,
+    outgoingMonthPosted,
+    incomeMonthProjected,
+    outgoingMonthProjected,
+    byCategory,
+    monthlyTrend,
+    recent,
+  } = useMemo(() => {
     const now = new Date();
     const monthStartStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
     const nextMonthStartStr = toLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 1));
-    
+    const todayStr = toLocalDate(now);
 
     // Bound to this calendar month only — excludes future-month transactions entered in advance.
     const inMonth = transactions.filter(
       (t) => t.occurred_on >= monthStartStr && t.occurred_on < nextMonthStartStr,
     );
-    let incomeMonth = inMonth
+
+    // Posted so far = only transactions dated on/before today.
+    const postedSoFar = inMonth.filter((t) => t.occurred_on <= todayStr);
+    const incomeMonthPosted = postedSoFar
       .filter((t) => t.kind === "income")
       .reduce((s, t) => s + Number(t.amount), 0);
-    let outgoingMonth = inMonth
+    const outgoingMonthPosted = postedSoFar
       .filter((t) => t.kind !== "income")
       .reduce((s, t) => s + Number(t.amount), 0);
 
-    // Project unfired recurring items across the WHOLE month (past + future) so
-    // that "This month in / out / net" matches the week/month-ahead projection.
-    // Otherwise future outgoings (already dated in this month) are counted but
-    // future income (still living only as a recurring rule) is missing, making
-    // the net look artificially negative.
+    // Projected month-end = every in-month transaction + unfired recurring income/outgoings
+    // for the remainder of the month.
+    let incomeMonthProjected = inMonth
+      .filter((t) => t.kind === "income")
+      .reduce((s, t) => s + Number(t.amount), 0);
+    let outgoingMonthProjected = inMonth
+      .filter((t) => t.kind !== "income")
+      .reduce((s, t) => s + Number(t.amount), 0);
+
     const monthEndStr = toLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
     const firedInMonth = new Set<string>();
     transactions.forEach((tx) => {
@@ -360,8 +375,8 @@ function DashboardPage() {
     allRecurringRules.forEach((rule) => {
       adjustedOccurrencesInRange(rule, monthStartStr, monthEndStr).forEach((ds) => {
         if (firedInMonth.has(`${rule.id}|${ds}`)) return;
-        if (rule.kind === "income") incomeMonth += Number(rule.amount);
-        else outgoingMonth += Number(rule.amount);
+        if (rule.kind === "income") incomeMonthProjected += Number(rule.amount);
+        else outgoingMonthProjected += Number(rule.amount);
       });
     });
 
@@ -401,7 +416,15 @@ function DashboardPage() {
     }
 
     const recent = transactions.slice(0, 6);
-    return { incomeMonth, outgoingMonth, byCategory, monthlyTrend: trend, recent };
+    return {
+      incomeMonthPosted,
+      outgoingMonthPosted,
+      incomeMonthProjected,
+      outgoingMonthProjected,
+      byCategory,
+      monthlyTrend: trend,
+      recent,
+    };
   }, [transactions, categories, allRecurringRules]);
 
   async function handleDelete(id: string) {
@@ -435,6 +458,15 @@ function DashboardPage() {
     toast.success(`${bill.name} marked as paid`);
   }
 
+  const [monthTileMode, setMonthTileMode] = useState<"posted" | "projected">(() => {
+    if (typeof window === "undefined") return "projected";
+    return (localStorage.getItem("dashboard.monthTileMode") as "posted" | "projected") ?? "projected";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("dashboard.monthTileMode", monthTileMode);
+  }, [monthTileMode]);
+  const incomeMonth = monthTileMode === "posted" ? incomeMonthPosted : incomeMonthProjected;
+  const outgoingMonth = monthTileMode === "posted" ? outgoingMonthPosted : outgoingMonthProjected;
   const monthBalance = incomeMonth - outgoingMonth;
   const monthLabel = new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
@@ -477,7 +509,32 @@ function DashboardPage() {
         <p className="mt-2 text-4xl font-bold tracking-tight md:text-5xl">
           {formatMoney(displayBalance)}
         </p>
-        <div className="mt-6 grid grid-cols-3 gap-3">
+        <div className="mt-6 flex items-center justify-between gap-2">
+          <p className="text-xs opacity-80">
+            {monthTileMode === "posted" ? "Posted so far" : "Projected month-end"}
+          </p>
+          <div className="inline-flex rounded-full bg-white/15 p-0.5 text-xs">
+            <button
+              type="button"
+              onClick={() => setMonthTileMode("posted")}
+              className={`rounded-full px-3 py-1 transition ${
+                monthTileMode === "posted" ? "bg-white text-primary" : "text-primary-foreground/80"
+              }`}
+            >
+              So far
+            </button>
+            <button
+              type="button"
+              onClick={() => setMonthTileMode("projected")}
+              className={`rounded-full px-3 py-1 transition ${
+                monthTileMode === "projected" ? "bg-white text-primary" : "text-primary-foreground/80"
+              }`}
+            >
+              Projected
+            </button>
+          </div>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-3">
           <Stat label="This month in" value={incomeMonth} icon={<TrendingUp className="h-4 w-4" />} />
           <Stat
             label="This month out"
