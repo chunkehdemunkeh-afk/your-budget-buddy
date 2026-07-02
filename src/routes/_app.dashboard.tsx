@@ -328,28 +328,43 @@ function DashboardPage() {
     };
   }, [user, householdId]);
 
-  const { incomeMonth, outgoingMonth, byCategory, monthlyTrend, recent } = useMemo(() => {
+  const {
+    incomeMonthPosted,
+    outgoingMonthPosted,
+    incomeMonthProjected,
+    outgoingMonthProjected,
+    byCategory,
+    monthlyTrend,
+    recent,
+  } = useMemo(() => {
     const now = new Date();
     const monthStartStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
     const nextMonthStartStr = toLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 1));
-    
+    const todayStr = toLocalDate(now);
 
     // Bound to this calendar month only — excludes future-month transactions entered in advance.
     const inMonth = transactions.filter(
       (t) => t.occurred_on >= monthStartStr && t.occurred_on < nextMonthStartStr,
     );
-    let incomeMonth = inMonth
+
+    // Posted so far = only transactions dated on/before today.
+    const postedSoFar = inMonth.filter((t) => t.occurred_on <= todayStr);
+    const incomeMonthPosted = postedSoFar
       .filter((t) => t.kind === "income")
       .reduce((s, t) => s + Number(t.amount), 0);
-    let outgoingMonth = inMonth
+    const outgoingMonthPosted = postedSoFar
       .filter((t) => t.kind !== "income")
       .reduce((s, t) => s + Number(t.amount), 0);
 
-    // Project unfired recurring items across the WHOLE month (past + future) so
-    // that "This month in / out / net" matches the week/month-ahead projection.
-    // Otherwise future outgoings (already dated in this month) are counted but
-    // future income (still living only as a recurring rule) is missing, making
-    // the net look artificially negative.
+    // Projected month-end = every in-month transaction + unfired recurring income/outgoings
+    // for the remainder of the month.
+    let incomeMonthProjected = inMonth
+      .filter((t) => t.kind === "income")
+      .reduce((s, t) => s + Number(t.amount), 0);
+    let outgoingMonthProjected = inMonth
+      .filter((t) => t.kind !== "income")
+      .reduce((s, t) => s + Number(t.amount), 0);
+
     const monthEndStr = toLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
     const firedInMonth = new Set<string>();
     transactions.forEach((tx) => {
@@ -360,8 +375,8 @@ function DashboardPage() {
     allRecurringRules.forEach((rule) => {
       adjustedOccurrencesInRange(rule, monthStartStr, monthEndStr).forEach((ds) => {
         if (firedInMonth.has(`${rule.id}|${ds}`)) return;
-        if (rule.kind === "income") incomeMonth += Number(rule.amount);
-        else outgoingMonth += Number(rule.amount);
+        if (rule.kind === "income") incomeMonthProjected += Number(rule.amount);
+        else outgoingMonthProjected += Number(rule.amount);
       });
     });
 
@@ -401,7 +416,15 @@ function DashboardPage() {
     }
 
     const recent = transactions.slice(0, 6);
-    return { incomeMonth, outgoingMonth, byCategory, monthlyTrend: trend, recent };
+    return {
+      incomeMonthPosted,
+      outgoingMonthPosted,
+      incomeMonthProjected,
+      outgoingMonthProjected,
+      byCategory,
+      monthlyTrend: trend,
+      recent,
+    };
   }, [transactions, categories, allRecurringRules]);
 
   async function handleDelete(id: string) {
