@@ -153,9 +153,10 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
             next = nextRunFrom(next, rule.frequency, rule.interval_days);
           }
           const nextStr = toDateOnly(next);
+          const shouldPause = !!rule.end_date && nextStr > rule.end_date;
           const { error: upErr } = await supabaseAdmin
             .from("recurring_rules")
-            .update({ next_run: nextStr })
+            .update(shouldPause ? { next_run: nextStr, paused: true } : { next_run: nextStr })
             .eq("id", rule.id);
           if (upErr) errors.push(`update ${rule.id}: ${upErr.message}`);
         }
