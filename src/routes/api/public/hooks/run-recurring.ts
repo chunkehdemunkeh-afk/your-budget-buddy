@@ -49,6 +49,7 @@ interface DueRule {
   next_run: string;
   category_id: string | null;
   weekend_adjust: boolean;
+  interval_days: number | null;
 }
 
 export const Route = createFileRoute("/api/public/hooks/run-recurring")({
