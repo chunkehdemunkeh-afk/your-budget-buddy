@@ -14,6 +14,7 @@ import {
   ChevronRight,
   CalendarIcon,
   ChevronDown,
+  Info,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
