@@ -40,6 +40,7 @@ export interface RecurringRule {
   paused: boolean;
   weekend_adjust: boolean;
   interval_days?: number | null;
+  end_date?: string | null;
 }
 
 interface Props {
