@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { addDays, addMonths, addYears } from "date-fns";
 
-type Frequency = "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly";
+type Frequency = "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly" | "custom";
 
-function nextRunFrom(date: Date, frequency: Frequency): Date {
+function nextRunFrom(date: Date, frequency: Frequency, intervalDays?: number | null): Date {
   switch (frequency) {
     case "weekly":
       return addDays(date, 7);
@@ -16,6 +16,8 @@ function nextRunFrom(date: Date, frequency: Frequency): Date {
       return addMonths(date, 1);
     case "yearly":
       return addYears(date, 1);
+    case "custom":
+      return addDays(date, Math.max(1, intervalDays ?? 1));
   }
 }
 
