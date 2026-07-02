@@ -563,6 +563,7 @@ function RuleList({
                     </span>
                   )}
                   {cat ? ` · ${cat.name}` : ""}
+                  {r.end_date ? ` · Ends ${formatShortDate(r.end_date)}` : ""}
                 </p>
               </div>
             </div>
