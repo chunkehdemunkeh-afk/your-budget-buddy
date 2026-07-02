@@ -113,6 +113,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
       frequency,
       start_date: startDate,
       category_id: categoryId,
+      interval_days: frequency === "custom" ? Number(intervalDays) : null,
     });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? "Please check the form");
@@ -132,6 +133,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
           next_run: parsed.data.start_date,
           category_id: parsed.data.category_id,
           weekend_adjust: weekendAdjust,
+          interval_days: parsed.data.interval_days,
         })
         .eq("id", rule.id);
       setSubmitting(false);
@@ -153,6 +155,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         next_run: parsed.data.start_date,
         category_id: parsed.data.category_id,
         weekend_adjust: weekendAdjust,
+        interval_days: parsed.data.interval_days,
       });
       setSubmitting(false);
       if (error) {
