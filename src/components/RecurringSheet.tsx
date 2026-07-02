@@ -78,6 +78,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
   const [kind, setKind] = useState<Kind>(defaultKind);
   const [frequency, setFrequency] = useState<Frequency>("monthly");
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState<string>("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [weekendAdjust, setWeekendAdjust] = useState(false);
   const [intervalDays, setIntervalDays] = useState<string>("");
