@@ -82,6 +82,17 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
         }
 
         for (const rule of (due as DueRule[] | null) ?? []) {
+          // Rule has ended — pause it and skip.
+          if (rule.end_date && rule.next_run > rule.end_date) {
+            const { error: pErr } = await supabaseAdmin
+              .from("recurring_rules")
+              .update({ paused: true })
+              .eq("id", rule.id);
+            if (pErr) errors.push(`pause ${rule.id}: ${pErr.message}`);
+            skipped++;
+            continue;
+          }
+
           // Compute the actual fire date, honouring weekend_adjust.
           const fireDate = rule.weekend_adjust
             ? adjustForWeekend(rule.next_run, rule.kind)
@@ -89,6 +100,12 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
 
           // Not due yet (e.g. income shifted to a Friday that's still ahead).
           if (fireDate > today) {
+            skipped++;
+            continue;
+          }
+
+          // Past the configured end date — don't fire.
+          if (rule.end_date && fireDate > rule.end_date) {
             skipped++;
             continue;
           }
