@@ -129,10 +129,10 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
           // Advance next_run past the raw scheduled date. Use the raw
           // next_run as the anchor (not the adjusted date) so the schedule
           // stays on its true cycle.
-          let next = nextRunFrom(new Date(rule.next_run), rule.frequency);
+          let next = nextRunFrom(new Date(rule.next_run), rule.frequency, rule.interval_days);
           const todayDate = new Date(today);
           while (next <= todayDate) {
-            next = nextRunFrom(next, rule.frequency);
+            next = nextRunFrom(next, rule.frequency, rule.interval_days);
           }
           const nextStr = toDateOnly(next);
           const { error: upErr } = await supabaseAdmin
