@@ -458,6 +458,15 @@ function DashboardPage() {
     toast.success(`${bill.name} marked as paid`);
   }
 
+  const [monthTileMode, setMonthTileMode] = useState<"posted" | "projected">(() => {
+    if (typeof window === "undefined") return "projected";
+    return (localStorage.getItem("dashboard.monthTileMode") as "posted" | "projected") ?? "projected";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("dashboard.monthTileMode", monthTileMode);
+  }, [monthTileMode]);
+  const incomeMonth = monthTileMode === "posted" ? incomeMonthPosted : incomeMonthProjected;
+  const outgoingMonth = monthTileMode === "posted" ? outgoingMonthPosted : outgoingMonthProjected;
   const monthBalance = incomeMonth - outgoingMonth;
   const monthLabel = new Date().toLocaleDateString("en-GB", { month: "long", year: "numeric" });
   const catMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
