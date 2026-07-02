@@ -163,6 +163,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         kind: parsed.data.kind,
         frequency: parsed.data.frequency,
         start_date: parsed.data.start_date,
+        end_date: parsed.data.end_date,
         next_run: parsed.data.start_date,
         category_id: parsed.data.category_id,
         weekend_adjust: weekendAdjust,
