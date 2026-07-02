@@ -92,6 +92,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         setKind(rule.kind);
         setFrequency(rule.frequency);
         setStartDate(rule.start_date);
+        setEndDate(rule.end_date ?? "");
         setCategoryId(rule.category_id);
         setWeekendAdjust(rule.weekend_adjust);
         setIntervalDays(rule.interval_days ? String(rule.interval_days) : "");
@@ -101,6 +102,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         setKind(defaultKind);
         setFrequency("monthly");
         setStartDate(new Date().toISOString().slice(0, 10));
+        setEndDate("");
         setCategoryId(null);
         setWeekendAdjust(false);
         setIntervalDays("");
