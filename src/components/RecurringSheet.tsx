@@ -25,7 +25,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCategories } from "@/hooks/useCategories";
 import { cn } from "@/lib/utils";
 
-type Frequency = "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly";
+type Frequency = "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly" | "custom";
 type Kind = "income" | "outgoing";
 
 export interface RecurringRule {
@@ -39,6 +39,7 @@ export interface RecurringRule {
   category_id: string | null;
   paused: boolean;
   weekend_adjust: boolean;
+  interval_days?: number | null;
 }
 
 interface Props {
@@ -48,14 +49,20 @@ interface Props {
   defaultKind?: Kind;
 }
 
-const schema = z.object({
-  name: z.string().trim().min(1).max(120),
-  amount: z.number().positive().max(1_000_000),
-  kind: z.enum(["income", "outgoing"]),
-  frequency: z.enum(["weekly", "fortnightly", "fourweekly", "monthly", "yearly"]),
-  start_date: z.string().min(1),
-  category_id: z.string().uuid().nullable(),
-});
+const schema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    amount: z.number().positive().max(1_000_000),
+    kind: z.enum(["income", "outgoing"]),
+    frequency: z.enum(["weekly", "fortnightly", "fourweekly", "monthly", "yearly", "custom"]),
+    start_date: z.string().min(1),
+    category_id: z.string().uuid().nullable(),
+    interval_days: z.number().int().min(1).max(365).nullable(),
+  })
+  .refine((d) => d.frequency !== "custom" || (d.interval_days != null && d.interval_days >= 1), {
+    message: "Enter a number of days (1–365)",
+    path: ["interval_days"],
+  });
 
 export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoing" }: Props) {
   const { user, householdId } = useAuth();
