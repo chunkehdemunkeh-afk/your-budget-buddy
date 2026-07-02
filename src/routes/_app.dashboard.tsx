@@ -14,6 +14,7 @@ import {
   ChevronRight,
   CalendarIcon,
   ChevronDown,
+  Info,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
@@ -510,9 +511,38 @@ function DashboardPage() {
           {formatMoney(displayBalance)}
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-          <p className="text-[11px] uppercase tracking-wide opacity-70 sm:text-xs sm:normal-case sm:tracking-normal sm:opacity-80">
-            {monthTileMode === "posted" ? "Posted so far" : "Projected month-end"}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="text-[11px] uppercase tracking-wide opacity-70 sm:text-xs sm:normal-case sm:tracking-normal sm:opacity-80">
+              {monthTileMode === "posted" ? "Posted so far" : "Projected month-end"}
+            </p>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="What do these totals include?"
+                  className="rounded-full p-0.5 opacity-70 transition hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                >
+                  <Info className="h-3.5 w-3.5" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-72 text-sm">
+                <p className="font-medium">What's counted</p>
+                <div className="mt-2 space-y-2 text-muted-foreground">
+                  <p>
+                    <span className="font-medium text-foreground">So far:</span> only income and
+                    outgoings already dated today or earlier this month. Future-dated entries and
+                    unfired recurring items are excluded.
+                  </p>
+                  <p>
+                    <span className="font-medium text-foreground">Projected month-end:</span> every
+                    in-month transaction plus recurring bills and income scheduled for the rest of
+                    the month (weekend-shifted where applicable). This matches the running total
+                    shown in the week-to-week breakdown.
+                  </p>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
           <div
             role="tablist"
             aria-label="Month tile mode"
@@ -542,6 +572,7 @@ function DashboardPage() {
             </button>
           </div>
         </div>
+
         <div className="mt-3 grid grid-cols-3 gap-2 sm:gap-3">
           <Stat label="In" fullLabel="This month in" value={incomeMonth} icon={<TrendingUp className="h-4 w-4" />} />
           <Stat
