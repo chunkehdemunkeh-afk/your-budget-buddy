@@ -336,6 +336,7 @@ export type Database = {
           category_id: string | null
           created_at: string
           day_of_cycle: number | null
+          end_date: string | null
           frequency: Database["public"]["Enums"]["recurrence_frequency"]
           household_id: string
           id: string
@@ -353,6 +354,7 @@ export type Database = {
           category_id?: string | null
           created_at?: string
           day_of_cycle?: number | null
+          end_date?: string | null
           frequency: Database["public"]["Enums"]["recurrence_frequency"]
           household_id: string
           id?: string
@@ -370,6 +372,7 @@ export type Database = {
           category_id?: string | null
           created_at?: string
           day_of_cycle?: number | null
+          end_date?: string | null
           frequency?: Database["public"]["Enums"]["recurrence_frequency"]
           household_id?: string
           id?: string
