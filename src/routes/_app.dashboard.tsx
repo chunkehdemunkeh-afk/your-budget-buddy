@@ -1341,16 +1341,23 @@ function Stat({
   value: number;
   icon: React.ReactNode;
 }) {
+  const displayLabel = fullLabel ?? label;
   return (
-    <div className="rounded-2xl bg-white/15 p-2.5 backdrop-blur-sm sm:p-3">
-      <div className="flex items-center gap-1.5 text-[11px] opacity-80 sm:text-xs">
+    <div
+      role="group"
+      aria-label={`${displayLabel}: ${formatMoney(value)}`}
+      className="rounded-2xl bg-white/15 p-2.5 backdrop-blur-sm sm:p-3"
+    >
+      <div className="flex items-center gap-1.5 text-[11px] opacity-80 sm:text-xs" aria-hidden="true">
         <span className="shrink-0">{icon}</span>
         <span className="truncate">
           <span className="sm:hidden">{label}</span>
-          <span className="hidden sm:inline">{fullLabel ?? label}</span>
+          <span className="hidden sm:inline">{displayLabel}</span>
         </span>
       </div>
-      <p className="mt-1 text-base font-semibold tabular-nums sm:text-lg">{formatMoney(value)}</p>
+      <p className="mt-1 text-base font-semibold tabular-nums sm:text-lg" aria-hidden="true">
+        {formatMoney(value)}
+      </p>
     </div>
   );
 }
