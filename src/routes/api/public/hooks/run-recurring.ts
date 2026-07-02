@@ -68,7 +68,7 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
         const { data: due, error } = await supabaseAdmin
           .from("recurring_rules")
           .select(
-            "id, user_id, household_id, name, amount, kind, frequency, next_run, category_id, weekend_adjust, interval_days",
+            "id, user_id, household_id, name, amount, kind, frequency, next_run, category_id, weekend_adjust, interval_days, end_date",
           )
           .eq("paused", false)
           .lte("next_run", lookahead)
