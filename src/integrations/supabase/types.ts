@@ -339,6 +339,7 @@ export type Database = {
           frequency: Database["public"]["Enums"]["recurrence_frequency"]
           household_id: string
           id: string
+          interval_days: number | null
           kind: Database["public"]["Enums"]["transaction_kind"]
           name: string
           next_run: string
@@ -355,6 +356,7 @@ export type Database = {
           frequency: Database["public"]["Enums"]["recurrence_frequency"]
           household_id: string
           id?: string
+          interval_days?: number | null
           kind: Database["public"]["Enums"]["transaction_kind"]
           name: string
           next_run?: string
@@ -371,6 +373,7 @@ export type Database = {
           frequency?: Database["public"]["Enums"]["recurrence_frequency"]
           household_id?: string
           id?: string
+          interval_days?: number | null
           kind?: Database["public"]["Enums"]["transaction_kind"]
           name?: string
           next_run?: string
@@ -527,6 +530,7 @@ export type Database = {
         | "monthly"
         | "yearly"
         | "fourweekly"
+        | "custom"
       transaction_kind: "income" | "outgoing" | "shopping"
     }
     CompositeTypes: {
@@ -662,6 +666,7 @@ export const Constants = {
         "monthly",
         "yearly",
         "fourweekly",
+        "custom",
       ],
       transaction_kind: ["income", "outgoing", "shopping"],
     },

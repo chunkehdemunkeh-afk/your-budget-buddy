@@ -257,7 +257,7 @@ function DashboardPage() {
           supabase.from("transactions").select("kind, amount, occurred_on"),
           supabase
             .from("recurring_rules")
-            .select("id, name, amount, next_run, start_date, frequency, kind, weekend_adjust")
+            .select("id, name, amount, next_run, start_date, frequency, kind, weekend_adjust, interval_days")
             .eq("paused", false)
             .order("next_run", { ascending: true }),
           supabase

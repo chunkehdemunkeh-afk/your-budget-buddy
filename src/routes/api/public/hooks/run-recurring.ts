@@ -2,9 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { addDays, addMonths, addYears } from "date-fns";
 
-type Frequency = "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly";
+type Frequency = "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly" | "custom";
 
-function nextRunFrom(date: Date, frequency: Frequency): Date {
+function nextRunFrom(date: Date, frequency: Frequency, intervalDays?: number | null): Date {
   switch (frequency) {
     case "weekly":
       return addDays(date, 7);
@@ -16,6 +16,8 @@ function nextRunFrom(date: Date, frequency: Frequency): Date {
       return addMonths(date, 1);
     case "yearly":
       return addYears(date, 1);
+    case "custom":
+      return addDays(date, Math.max(1, intervalDays ?? 1));
   }
 }
 
@@ -47,6 +49,7 @@ interface DueRule {
   next_run: string;
   category_id: string | null;
   weekend_adjust: boolean;
+  interval_days: number | null;
 }
 
 export const Route = createFileRoute("/api/public/hooks/run-recurring")({
@@ -64,7 +67,7 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
         const { data: due, error } = await supabaseAdmin
           .from("recurring_rules")
           .select(
-            "id, user_id, household_id, name, amount, kind, frequency, next_run, category_id, weekend_adjust",
+            "id, user_id, household_id, name, amount, kind, frequency, next_run, category_id, weekend_adjust, interval_days",
           )
           .eq("paused", false)
           .lte("next_run", lookahead)
@@ -126,10 +129,10 @@ export const Route = createFileRoute("/api/public/hooks/run-recurring")({
           // Advance next_run past the raw scheduled date. Use the raw
           // next_run as the anchor (not the adjusted date) so the schedule
           // stays on its true cycle.
-          let next = nextRunFrom(new Date(rule.next_run), rule.frequency);
+          let next = nextRunFrom(new Date(rule.next_run), rule.frequency, rule.interval_days);
           const todayDate = new Date(today);
           while (next <= todayDate) {
-            next = nextRunFrom(next, rule.frequency);
+            next = nextRunFrom(next, rule.frequency, rule.interval_days);
           }
           const nextStr = toDateOnly(next);
           const { error: upErr } = await supabaseAdmin

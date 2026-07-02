@@ -25,7 +25,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useCategories } from "@/hooks/useCategories";
 import { cn } from "@/lib/utils";
 
-type Frequency = "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly";
+type Frequency = "weekly" | "fortnightly" | "fourweekly" | "monthly" | "yearly" | "custom";
 type Kind = "income" | "outgoing";
 
 export interface RecurringRule {
@@ -39,6 +39,7 @@ export interface RecurringRule {
   category_id: string | null;
   paused: boolean;
   weekend_adjust: boolean;
+  interval_days?: number | null;
 }
 
 interface Props {
@@ -48,14 +49,20 @@ interface Props {
   defaultKind?: Kind;
 }
 
-const schema = z.object({
-  name: z.string().trim().min(1).max(120),
-  amount: z.number().positive().max(1_000_000),
-  kind: z.enum(["income", "outgoing"]),
-  frequency: z.enum(["weekly", "fortnightly", "fourweekly", "monthly", "yearly"]),
-  start_date: z.string().min(1),
-  category_id: z.string().uuid().nullable(),
-});
+const schema = z
+  .object({
+    name: z.string().trim().min(1).max(120),
+    amount: z.number().positive().max(1_000_000),
+    kind: z.enum(["income", "outgoing"]),
+    frequency: z.enum(["weekly", "fortnightly", "fourweekly", "monthly", "yearly", "custom"]),
+    start_date: z.string().min(1),
+    category_id: z.string().uuid().nullable(),
+    interval_days: z.number().int().min(1).max(365).nullable(),
+  })
+  .refine((d) => d.frequency !== "custom" || (d.interval_days != null && d.interval_days >= 1), {
+    message: "Enter a number of days (1–365)",
+    path: ["interval_days"],
+  });
 
 export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoing" }: Props) {
   const { user, householdId } = useAuth();
@@ -67,6 +74,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [weekendAdjust, setWeekendAdjust] = useState(false);
+  const [intervalDays, setIntervalDays] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -79,6 +87,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         setStartDate(rule.start_date);
         setCategoryId(rule.category_id);
         setWeekendAdjust(rule.weekend_adjust);
+        setIntervalDays(rule.interval_days ? String(rule.interval_days) : "");
       } else {
         setName("");
         setAmount("");
@@ -87,6 +96,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         setStartDate(new Date().toISOString().slice(0, 10));
         setCategoryId(null);
         setWeekendAdjust(false);
+        setIntervalDays("");
       }
     }
   }, [open, rule, defaultKind]);
@@ -103,6 +113,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
       frequency,
       start_date: startDate,
       category_id: categoryId,
+      interval_days: frequency === "custom" ? Number(intervalDays) : null,
     });
     if (!parsed.success) {
       toast.error(parsed.error.issues[0]?.message ?? "Please check the form");
@@ -122,6 +133,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
           next_run: parsed.data.start_date,
           category_id: parsed.data.category_id,
           weekend_adjust: weekendAdjust,
+          interval_days: parsed.data.interval_days,
         })
         .eq("id", rule.id);
       setSubmitting(false);
@@ -143,6 +155,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
         next_run: parsed.data.start_date,
         category_id: parsed.data.category_id,
         weekend_adjust: weekendAdjust,
+        interval_days: parsed.data.interval_days,
       });
       setSubmitting(false);
       if (error) {
@@ -227,6 +240,7 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
                   <SelectItem value="fourweekly">Every 4 Weeks</SelectItem>
                   <SelectItem value="monthly">Monthly</SelectItem>
                   <SelectItem value="yearly">Yearly</SelectItem>
+                  <SelectItem value="custom">Custom (every N days)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -242,6 +256,26 @@ export function RecurringSheet({ open, onOpenChange, rule, defaultKind = "outgoi
               />
             </div>
           </div>
+
+          {frequency === "custom" && (
+            <div>
+              <Label htmlFor="rinterval">Repeat every (days)</Label>
+              <Input
+                id="rinterval"
+                type="number"
+                min={1}
+                max={365}
+                required
+                placeholder="e.g. 10"
+                value={intervalDays}
+                onChange={(e) => setIntervalDays(e.target.value.replace(/[^\d]/g, ""))}
+                className="mt-1 h-11 rounded-xl"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Posts every {intervalDays || "N"} days starting from the date above.
+              </p>
+            </div>
+          )}
 
           <div>
             <Label>Category</Label>

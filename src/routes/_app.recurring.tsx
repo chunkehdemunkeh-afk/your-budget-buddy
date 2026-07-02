@@ -64,7 +64,7 @@ function RecurringPage() {
     async function load() {
       const { data, error } = await supabase
         .from("recurring_rules")
-        .select("id, name, amount, kind, frequency, start_date, next_run, category_id, paused, weekend_adjust")
+        .select("id, name, amount, kind, frequency, start_date, next_run, category_id, paused, weekend_adjust, interval_days")
         .order("next_run", { ascending: true });
       if (!mounted) return;
       if (error) toast.error(error.message);
@@ -150,7 +150,7 @@ function RecurringPage() {
       toast.error(txErr.message);
       return;
     }
-    const next = toDateOnly(nextRunFrom(new Date(rule.next_run), rule.frequency));
+    const next = toDateOnly(nextRunFrom(new Date(rule.next_run), rule.frequency, rule.interval_days));
     await supabase.from("recurring_rules").update({ next_run: next }).eq("id", rule.id);
     toast.success(`${rule.name} posted · next ${formatShortDate(next)}`);
   }
@@ -551,11 +551,11 @@ function RuleList({
                   </span>
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {frequencyLabel(r.frequency)} · next{" "}
+                  {frequencyLabel(r.frequency, r.interval_days)} · next{" "}
                   {formatShortDate(
                     r.weekend_adjust
-                      ? adjustForWeekend(displayNextRun(r.next_run, r.frequency), r.kind)
-                      : displayNextRun(r.next_run, r.frequency),
+                      ? adjustForWeekend(displayNextRun(r.next_run, r.frequency, r.interval_days), r.kind)
+                      : displayNextRun(r.next_run, r.frequency, r.interval_days),
                   )}
                   {r.weekend_adjust && (
                     <span className="ml-1.5 inline-flex items-center rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
